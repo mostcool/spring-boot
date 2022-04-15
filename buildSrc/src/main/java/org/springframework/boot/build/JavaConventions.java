@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -202,9 +202,15 @@ class JavaConventions {
 				compile.setSourceCompatibility(SOURCE_AND_TARGET_COMPATIBILITY);
 				compile.setTargetCompatibility(SOURCE_AND_TARGET_COMPATIBILITY);
 			}
-			args.addAll(Arrays.asList("-Werror", "-Xlint:unchecked", "-Xlint:deprecation", "-Xlint:rawtypes",
-					"-Xlint:varargs"));
+			else if (buildingWithJava17(project)) {
+				args.addAll(Arrays.asList("-Werror", "-Xlint:unchecked", "-Xlint:deprecation", "-Xlint:rawtypes",
+						"-Xlint:varargs"));
+			}
 		});
+	}
+
+	private boolean buildingWithJava17(Project project) {
+		return !project.hasProperty("toolchainVersion") && JavaVersion.current() == JavaVersion.VERSION_17;
 	}
 
 	private void configureSpringJavaFormat(Project project) {

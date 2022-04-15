@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import com.mongodb.MongoClientSettings;
-import de.flapdoodle.embed.mongo.Command;
 import de.flapdoodle.embed.mongo.MongodExecutable;
 import de.flapdoodle.embed.mongo.MongodStarter;
 import de.flapdoodle.embed.mongo.config.Defaults;
@@ -32,12 +31,12 @@ import de.flapdoodle.embed.mongo.config.ImmutableMongodConfig;
 import de.flapdoodle.embed.mongo.config.MongodConfig;
 import de.flapdoodle.embed.mongo.config.Net;
 import de.flapdoodle.embed.mongo.config.Storage;
-import de.flapdoodle.embed.mongo.distribution.Feature;
 import de.flapdoodle.embed.mongo.distribution.IFeatureAwareVersion;
 import de.flapdoodle.embed.mongo.distribution.Version;
 import de.flapdoodle.embed.mongo.distribution.Versions;
+import de.flapdoodle.embed.mongo.packageresolver.Command;
 import de.flapdoodle.embed.process.config.RuntimeConfig;
-import de.flapdoodle.embed.process.config.io.ProcessOutput;
+import de.flapdoodle.embed.process.config.process.ProcessOutput;
 import de.flapdoodle.embed.process.config.store.DownloadConfig;
 import de.flapdoodle.embed.process.config.store.ImmutableDownloadConfig;
 import de.flapdoodle.embed.process.distribution.Version.GenericVersion;
@@ -50,7 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -85,9 +84,8 @@ import org.springframework.util.Assert;
  * @author Chris Bono
  * @since 1.3.0
  */
-@Configuration(proxyBeanMethods = false)
+@AutoConfiguration(before = MongoAutoConfiguration.class)
 @EnableConfigurationProperties({ MongoProperties.class, EmbeddedMongoProperties.class })
-@AutoConfigureBefore(MongoAutoConfiguration.class)
 @ConditionalOnClass({ MongoClientSettings.class, MongodStarter.class })
 @Import({ EmbeddedMongoClientDependsOnBeanFactoryPostProcessor.class,
 		EmbeddedReactiveStreamsMongoClientDependsOnBeanFactoryPostProcessor.class })
@@ -138,8 +136,8 @@ public class EmbeddedMongoAutoConfiguration {
 			builder.net(new Net(getHost().getHostAddress(), configuredPort, Network.localhostIsIPv6()));
 		}
 		else {
-			builder.net(new Net(getHost().getHostAddress(), Network.getFreeServerPort(getHost()),
-					Network.localhostIsIPv6()));
+			builder.net(
+					new Net(getHost().getHostAddress(), Network.freeServerPort(getHost()), Network.localhostIsIPv6()));
 		}
 		return builder.build();
 	}
@@ -147,16 +145,12 @@ public class EmbeddedMongoAutoConfiguration {
 	private IFeatureAwareVersion determineVersion(EmbeddedMongoProperties embeddedProperties) {
 		Assert.state(embeddedProperties.getVersion() != null, "Set the spring.mongodb.embedded.version property or "
 				+ "define your own MongodConfig bean to use embedded MongoDB");
-		if (embeddedProperties.getFeatures() == null) {
-			for (Version version : Version.values()) {
-				if (version.asInDownloadPath().equals(embeddedProperties.getVersion())) {
-					return version;
-				}
+		for (Version version : Version.values()) {
+			if (version.asInDownloadPath().equals(embeddedProperties.getVersion())) {
+				return version;
 			}
-			return Versions.withFeatures(createEmbeddedMongoVersion(embeddedProperties));
 		}
-		return Versions.withFeatures(createEmbeddedMongoVersion(embeddedProperties),
-				embeddedProperties.getFeatures().toArray(new Feature[0]));
+		return Versions.withFeatures(createEmbeddedMongoVersion(embeddedProperties));
 	}
 
 	private GenericVersion createEmbeddedMongoVersion(EmbeddedMongoProperties embeddedProperties) {
@@ -204,9 +198,9 @@ public class EmbeddedMongoAutoConfiguration {
 		RuntimeConfig embeddedMongoRuntimeConfig(
 				ObjectProvider<DownloadConfigBuilderCustomizer> downloadConfigBuilderCustomizers) {
 			Logger logger = LoggerFactory.getLogger(getClass().getPackage().getName() + ".EmbeddedMongo");
-			ProcessOutput processOutput = new ProcessOutput(Processors.logTo(logger, Slf4jLevel.INFO),
-					Processors.logTo(logger, Slf4jLevel.ERROR),
-					Processors.named("[console>]", Processors.logTo(logger, Slf4jLevel.DEBUG)));
+			ProcessOutput processOutput = ProcessOutput.builder().output(Processors.logTo(logger, Slf4jLevel.INFO))
+					.error(Processors.logTo(logger, Slf4jLevel.ERROR))
+					.commands(Processors.named("[console>]", Processors.logTo(logger, Slf4jLevel.DEBUG))).build();
 			return Defaults.runtimeConfigFor(Command.MongoD, logger).processOutput(processOutput)
 					.artifactStore(getArtifactStore(logger, downloadConfigBuilderCustomizers.orderedStream()))
 					.isDaemonProcess(false).build();

@@ -4,6 +4,7 @@ plugins {
 	id "org.asciidoctor.jvm.convert"
 	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.deployed"
+	id 'org.jetbrains.kotlin.jvm'
 }
 
 description = "Spring Boot Docs"
@@ -37,6 +38,11 @@ plugins.withType(EclipsePlugin) {
 	extensions.getByType(org.gradle.plugins.ide.eclipse.model.EclipseModel).classpath { classpath ->
 		classpath.plusConfigurations.add(configurations.getByName(sourceSets.main.runtimeClasspathConfigurationName))
 	}
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) { 
+	kotlinOptions.apiVersion = '1.6'
+	kotlinOptions.languageVersion = '1.6'
 }
 
 dependencies {
@@ -74,7 +80,6 @@ dependencies {
 	implementation("io.micrometer:micrometer-registry-graphite")
 	implementation("io.micrometer:micrometer-registry-jmx")
 	implementation("io.projectreactor.netty:reactor-netty-http")
-	implementation("io.r2dbc:r2dbc-postgresql")
 	implementation("io.undertow:undertow-core")
 	implementation("jakarta.annotation:jakarta.annotation-api")
 	implementation("jakarta.jms:jakarta.jms-api")
@@ -83,6 +88,7 @@ dependencies {
 	implementation("jakarta.validation:jakarta.validation-api")
 	implementation("net.sourceforge.htmlunit:htmlunit") {
 		exclude group: "commons-logging", module: "commons-logging"
+		exclude group: "xml-apis", module: "xml-apis"
 	}
 	implementation("org.apache.commons:commons-dbcp2") {
 		exclude group: "commons-logging", module: "commons-logging"
@@ -95,15 +101,21 @@ dependencies {
 	}
 	implementation("org.apache.tomcat.embed:tomcat-embed-core")
 	implementation("org.assertj:assertj-core")
-	implementation("org.codehaus.groovy:groovy")
+	implementation("org.cache2k:cache2k-spring")
+	implementation("org.apache.groovy:groovy")
 	implementation("org.hibernate:hibernate-jcache") {
 		exclude group: "javax.activation", module: "javax.activation-api"
 		exclude group: "javax.persistence", module: "javax.persistence-api"
 		exclude group: "javax.xml.bind", module: "jaxb-api"
 		exclude group: "org.jboss.spec.javax.transaction", module: "jboss-transaction-api_1.2_spec"
 	}
+	implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+	implementation("org.jooq:jooq") {
+		exclude group: "javax.xml.bind", module: "jaxb-api"
+	}
 	implementation("org.mockito:mockito-core")
 	implementation("org.mongodb:mongodb-driver-sync")
+	implementation("org.postgresql:r2dbc-postgresql")
 	implementation("org.quartz-scheduler:quartz")
 	implementation("org.slf4j:jul-to-slf4j")
 	implementation("org.springframework:spring-jdbc")
@@ -118,6 +130,7 @@ dependencies {
 	implementation("org.springframework.amqp:spring-rabbit")
 	implementation("org.springframework.batch:spring-batch-core")
 	implementation("org.springframework.data:spring-data-cassandra")
+	implementation("org.springframework.data:spring-data-couchbase")
 	implementation("org.springframework.data:spring-data-elasticsearch") {
 		exclude group: "commons-logging", module: "commons-logging"
 	}
@@ -138,6 +151,7 @@ dependencies {
 	implementation("org.springframework.restdocs:spring-restdocs-mockmvc") {
 		exclude group: "javax.servlet", module: "javax.servlet-api"
 	}
+	implementation("org.springframework.restdocs:spring-restdocs-restassured")
 	implementation("org.springframework.restdocs:spring-restdocs-webtestclient")
 	implementation("org.springframework.security:spring-security-config")
 	implementation("org.springframework.security:spring-security-oauth2-client")
@@ -189,7 +203,6 @@ task aggregatedJavadoc(type: Javadoc) {
 			outputLevel = "quiet"
 			source = "1.8"
 			splitIndex = true
-			stylesheetFile = file("src/main/javadoc/spring-javadoc.css")
 			use = true
 			windowTitle = "Spring Boot ${project.version} API"
 		}
@@ -198,10 +211,10 @@ task aggregatedJavadoc(type: Javadoc) {
 			def tomcatVersion = "${versionConstraints["org.apache.tomcat:tomcat-annotations-api"]}"
 			def tomcatDocsVersion = tomcatVersion.substring(0, tomcatVersion.lastIndexOf("."));
 			options.links = [
-				"https://docs.oracle.com/javase/8/docs/api/",
-				"https://docs.oracle.com/javaee/7/api/",
+				"https://docs.oracle.com/en/java/javase/17/docs/api/",
 				"https://docs.spring.io/spring-framework/docs/${versionConstraints["org.springframework:spring-core"]}/javadoc-api/",
 				"https://docs.spring.io/spring-security/site/docs/${versionConstraints["org.springframework.security:spring-security-core"]}/api/",
+				"https://jakarta.ee/specifications/platform/9/apidocs/",
 				"https://tomcat.apache.org/tomcat-${tomcatDocsVersion}-doc/api/",
 			] as String[]
 		}
@@ -239,6 +252,8 @@ task documentConfigurationProperties(type: org.springframework.boot.build.contex
 	outputDir = file("${buildDir}/docs/generated/")
 }
 
+task documentDevtoolsPropertyDefaults(type: org.springframework.boot.build.devtools.DocumentDevtoolsPropertyDefaults) {}
+
 tasks.withType(org.asciidoctor.gradle.jvm.AbstractAsciidoctorTask) {
 	dependsOn dependencyVersions
 	asciidoctorj {
@@ -258,6 +273,7 @@ tasks.withType(org.asciidoctor.gradle.jvm.AbstractAsciidoctorTask) {
 					"spring-batch-version": versionConstraints["org.springframework.batch:spring-batch-core"],
 					"spring-boot-version": project.version,
 					"spring-data-commons-version": versionConstraints["org.springframework.data:spring-data-commons"],
+					"spring-data-couchbase-version": versionConstraints["org.springframework.data:spring-data-couchbase"],
 					"spring-data-envers-version": versionConstraints["org.springframework.data:spring-data-envers"],
 					"spring-data-jdbc-version": versionConstraints["org.springframework.data:spring-data-jdbc"],
 					"spring-data-jpa-version": versionConstraints["org.springframework.data:spring-data-jpa"],
@@ -298,6 +314,7 @@ syncDocumentationSourceForAsciidoctor {
 	dependsOn documentDependencyVersions
 	dependsOn documentVersionProperties
 	dependsOn documentConfigurationProperties
+	dependsOn documentDevtoolsPropertyDefaults
 	from("${buildDir}/docs/generated") {
 		into "asciidoc"
 	}
@@ -306,6 +323,9 @@ syncDocumentationSourceForAsciidoctor {
 	}
 	from("src/test/java") {
 		into "test/java"
+	}
+	from("src/main/kotlin") {
+		into "main/kotlin"
 	}
 	from("src/main/groovy") {
 		into "main/groovy"
@@ -319,6 +339,7 @@ syncDocumentationSourceForAsciidoctorMultipage {
 	dependsOn documentDependencyVersions
 	dependsOn documentVersionProperties
 	dependsOn documentConfigurationProperties
+	dependsOn documentDevtoolsPropertyDefaults
 	from("${buildDir}/docs/generated") {
 		into "asciidoc"
 	}
@@ -327,6 +348,9 @@ syncDocumentationSourceForAsciidoctorMultipage {
 	}
 	from("src/test/java") {
 		into "test/java"
+	}
+	from("src/main/kotlin") {
+		into "main/kotlin"
 	}
 	from("src/main/groovy") {
 		into "main/groovy"
@@ -340,6 +364,7 @@ syncDocumentationSourceForAsciidoctorPdf {
 	dependsOn documentDependencyVersions
 	dependsOn documentVersionProperties
 	dependsOn documentConfigurationProperties
+	dependsOn documentDevtoolsPropertyDefaults
 	from("${buildDir}/docs/generated") {
 		into "asciidoc"
 	}
@@ -348,6 +373,9 @@ syncDocumentationSourceForAsciidoctorPdf {
 	}
 	from("src/test/java") {
 		into "test/java"
+	}
+	from("src/main/kotlin") {
+		into "main/kotlin"
 	}
 	from("src/main/groovy") {
 		into "main/groovy"

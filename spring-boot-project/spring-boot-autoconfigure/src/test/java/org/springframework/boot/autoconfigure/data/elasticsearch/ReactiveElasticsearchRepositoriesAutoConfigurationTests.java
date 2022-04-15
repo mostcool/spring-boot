@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import org.springframework.boot.autoconfigure.data.empty.EmptyDataPackage;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.testsupport.testcontainers.DockerImageNames;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.elasticsearch.backend.elasticsearch7.ReactiveElasticsearchTemplate;
+import org.springframework.data.elasticsearch.core.ReactiveElasticsearchTemplate;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,9 +55,8 @@ class ReactiveElasticsearchRepositoriesAutoConfigurationTests {
 			.withConfiguration(AutoConfigurations.of(ReactiveElasticsearchRestClientAutoConfiguration.class,
 					ReactiveElasticsearchRepositoriesAutoConfiguration.class, ElasticsearchDataAutoConfiguration.class))
 			.withPropertyValues(
-					"spring.data.elasticsearch.client.reactive.endpoints=" + elasticsearch.getHost() + ":"
-							+ elasticsearch.getFirstMappedPort(),
-					"spring.data.elasticsearch.client.reactive.socket-timeout=30s");
+					"spring.elasticsearch.uris=" + elasticsearch.getHost() + ":" + elasticsearch.getFirstMappedPort(),
+					"spring.elasticsearch.socket-timeout=30s");
 
 	@Test
 	void testDefaultRepositoryConfiguration() {

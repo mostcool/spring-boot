@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,12 +33,18 @@ import org.flywaydb.core.api.callback.Context;
 import org.flywaydb.core.api.callback.Event;
 import org.flywaydb.core.api.migration.JavaMigration;
 import org.flywaydb.core.internal.license.FlywayTeamsUpgradeRequiredException;
+import org.flywaydb.core.internal.plugin.PluginRegister;
+import org.flywaydb.database.sqlserver.SQLServerConfigurationExtension;
 import org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DefaultDSLContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
@@ -285,53 +291,18 @@ class FlywayAutoConfigurationTests {
 	@Test
 	void changeLogDoesNotExist() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.locations:filesystem:no-such-dir").run((context) -> {
-					assertThat(context).hasFailed();
-					assertThat(context).getFailure().isInstanceOf(BeanCreationException.class);
-				});
-	}
-
-	@Test
-	@Deprecated
-	void checkLocationsAllMissing() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.locations:classpath:db/missing1,classpath:db/migration2")
+				.withPropertyValues("spring.flyway.fail-on-missing-locations=true",
+						"spring.flyway.locations:filesystem:no-such-dir")
 				.run((context) -> {
 					assertThat(context).hasFailed();
 					assertThat(context).getFailure().isInstanceOf(BeanCreationException.class);
-					assertThat(context).getFailure().hasMessageContaining("Cannot find migration scripts in");
 				});
-	}
-
-	@Test
-	@Deprecated
-	void checkLocationsAllExist() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.locations:classpath:db/changelog,classpath:db/migration")
-				.run((context) -> assertThat(context).hasNotFailed());
-	}
-
-	@Test
-	@Deprecated
-	void checkLocationsAllExistWithImplicitClasspathPrefix() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.locations:db/changelog,db/migration")
-				.run((context) -> assertThat(context).hasNotFailed());
-	}
-
-	@Test
-	@Deprecated
-	void checkLocationsAllExistWithFilesystemPrefix() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.locations:filesystem:src/test/resources/db/migration")
-				.run((context) -> assertThat(context).hasNotFailed());
 	}
 
 	@Test
 	void failOnMissingLocationsAllMissing() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.check-location=false",
-						"spring.flyway.fail-on-missing-locations=true")
+				.withPropertyValues("spring.flyway.fail-on-missing-locations=true")
 				.withPropertyValues("spring.flyway.locations:classpath:db/missing1,classpath:db/migration2")
 				.run((context) -> {
 					assertThat(context).hasFailed();
@@ -343,8 +314,7 @@ class FlywayAutoConfigurationTests {
 	@Test
 	void failOnMissingLocationsAllExist() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.check-location=false",
-						"spring.flyway.fail-on-missing-locations=true")
+				.withPropertyValues("spring.flyway.fail-on-missing-locations=true")
 				.withPropertyValues("spring.flyway.locations:classpath:db/changelog,classpath:db/migration")
 				.run((context) -> assertThat(context).hasNotFailed());
 	}
@@ -352,8 +322,7 @@ class FlywayAutoConfigurationTests {
 	@Test
 	void failOnMissingLocationsAllExistWithImplicitClasspathPrefix() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.check-location=false",
-						"spring.flyway.fail-on-missing-locations=true")
+				.withPropertyValues("spring.flyway.fail-on-missing-locations=true")
 				.withPropertyValues("spring.flyway.locations:db/changelog,db/migration")
 				.run((context) -> assertThat(context).hasNotFailed());
 	}
@@ -361,8 +330,7 @@ class FlywayAutoConfigurationTests {
 	@Test
 	void failOnMissingLocationsAllExistWithFilesystemPrefix() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.check-location=false",
-						"spring.flyway.fail-on-missing-locations=true")
+				.withPropertyValues("spring.flyway.fail-on-missing-locations=true")
 				.withPropertyValues("spring.flyway.locations:filesystem:src/test/resources/db/migration")
 				.run((context) -> assertThat(context).hasNotFailed());
 	}
@@ -629,9 +597,15 @@ class FlywayAutoConfigurationTests {
 
 	@Test
 	void sqlServerKerberosLoginFileIsCorrectlyMapped() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
-				.withPropertyValues("spring.flyway.sql-server-kerberos-login-file=/tmp/config")
-				.run(validateFlywayTeamsPropertyOnly("sqlServer.kerberosLoginFile"));
+		try {
+			this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
+					.withPropertyValues("spring.flyway.sql-server-kerberos-login-file=/tmp/config")
+					.run(validateFlywayTeamsPropertyOnly("sqlserver.kerberos.login.file"));
+		}
+		finally {
+			// Reset to default value
+			PluginRegister.getPlugin(SQLServerConfigurationExtension.class).setKerberosLoginFile(null);
+		}
 	}
 
 	@Test
@@ -639,6 +613,34 @@ class FlywayAutoConfigurationTests {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
 				.withPropertyValues("spring.flyway.skip-executing-migrations=true")
 				.run(validateFlywayTeamsPropertyOnly("skipExecutingMigrations"));
+	}
+
+	@Test
+	void whenFlywayIsAutoConfiguredThenJooqDslContextDependsOnFlywayBeans() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class)
+				.run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("flywayInitializer", "flyway");
+				});
+	}
+
+	@Test
+	void whenCustomMigrationInitializerIsDefinedThenJooqDslContextDependsOnIt() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class,
+				CustomFlywayMigrationInitializer.class).run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("flywayMigrationInitializer",
+							"flyway");
+				});
+	}
+
+	@Test
+	void whenCustomFlywayIsDefinedThenJooqDslContextDependsOnIt() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class,
+				CustomFlyway.class).run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("customFlyway");
+				});
 	}
 
 	@Test
@@ -908,6 +910,16 @@ class FlywayAutoConfigurationTests {
 		@Order(0)
 		FlywayConfigurationCustomizer customizerTwo() {
 			return (configuration) -> configuration.connectRetries(10).baselineDescription("<< Custom baseline >>");
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class JooqConfiguration {
+
+		@Bean
+		DSLContext dslContext() {
+			return new DefaultDSLContext(SQLDialect.H2);
 		}
 
 	}

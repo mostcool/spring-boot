@@ -10,10 +10,7 @@ This section answers common questions about Spring MVC and Spring Boot.
 === Write a JSON REST Service
 Any Spring `@RestController` in a Spring Boot application should render JSON response by default as long as Jackson2 is on the classpath, as shown in the following example:
 
-[source,java,indent=0,subs="verbatim"]
-----
-include::{docs-java}/howto/springmvc/writejsonrestservice/MyController.java[]
-----
+include::code:MyController[]
 
 As long as `MyThing` can be serialized by Jackson2 (true for a normal POJO or Groovy object), then `http://localhost:8080/thing` serves a JSON representation of it by default.
 Note that, in a browser, you might sometimes see XML responses, because browsers tend to send accept headers that prefer XML.
@@ -36,10 +33,7 @@ To use the Jackson XML renderer, add the following dependency to your project:
 
 If Jackson's XML extension is not available and JAXB is available, XML can be rendered with the additional requirement of having `MyThing` annotated as `@XmlRootElement`, as shown in the following example:
 
-[source,java,indent=0,subs="verbatim"]
-----
-include::{docs-java}/howto/springmvc/writexmlrestservice/MyThing.java[]
-----
+include::code:MyThing[]
 
 JAXB is only available out of the box with Java 8.
 If you use a more recent Java generation, add the following dependency to your project:
@@ -203,6 +197,11 @@ If you add your own, you have to be aware of the order and in which position you
   This is a composite resolver, delegating to all the others and attempting to find a match to the '`Accept`' HTTP header sent by the client.
   There is a useful https://spring.io/blog/2013/06/03/content-negotiation-using-views[blog about `ContentNegotiatingViewResolver`] that you might like to study to learn more, and you might also look at the source code for detail.
   You can switch off the auto-configured `ContentNegotiatingViewResolver` by defining a bean named '`viewResolver`'.
+* If you use Thymeleaf, you also have a `ThymeleafViewResolver` named '`thymeleafViewResolver`'.
+  It looks for resources by surrounding the view name with a prefix and suffix.
+  The prefix is `spring.thymeleaf.prefix`, and the suffix is `spring.thymeleaf.suffix`.
+  The values of the prefix and suffix default to '`classpath:/templates/`' and '`.html`', respectively.
+  You can override `ThymeleafViewResolver` by providing a bean of the same name.
 * If you use FreeMarker, you also have a `FreeMarkerViewResolver` named '`freeMarkerViewResolver`'.
   It looks for resources in a loader path (which is externalized to `spring.freemarker.templateLoaderPath` and has a default value of '`classpath:/templates/`') by surrounding the view name with a prefix and a suffix.
   The prefix is externalized to `spring.freemarker.prefix`, and the suffix is externalized to `spring.freemarker.suffix`.
@@ -221,5 +220,6 @@ If you add your own, you have to be aware of the order and in which position you
 For more detail, see the following sections:
 
 * {spring-boot-autoconfigure-module-code}/web/servlet/WebMvcAutoConfiguration.java[`WebMvcAutoConfiguration`]
+* {spring-boot-autoconfigure-module-code}/thymeleaf/ThymeleafAutoConfiguration.java[`ThymeleafAutoConfiguration`]
 * {spring-boot-autoconfigure-module-code}/freemarker/FreeMarkerAutoConfiguration.java[`FreeMarkerAutoConfiguration`]
 * {spring-boot-autoconfigure-module-code}/groovy/template/GroovyTemplateAutoConfiguration.java[`GroovyTemplateAutoConfiguration`]

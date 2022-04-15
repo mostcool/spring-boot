@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,13 @@ import java.time.Duration;
 import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.OS;
 import reactor.util.function.Tuples;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.testsupport.junit.DisabledOnOs;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -35,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Vedran Pavic
  */
-@SpringBootTest(properties = "spring.session.timeout:5", webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(properties = "spring.session.timeout:10", webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@DisabledOnOs(os = OS.LINUX, architecture = "aarch64",
+		disabledReason = "Embedded Mongo doesn't support Linux aarch64, see https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/issues/379")
 class SampleSessionWebFluxApplicationTests {
 
 	@LocalServerPort
@@ -59,7 +63,7 @@ class SampleSessionWebFluxApplicationTests {
 						.doOnNext((sessionId) -> assertThat(sessionId).isEqualTo(tuple.getT2()))
 						.thenReturn(sesssionCookie);
 			});
-		}).delayElement(Duration.ofSeconds(5))
+		}).delayElement(Duration.ofSeconds(10))
 				.flatMap((sessionCookie) -> client.get().cookie("SESSION", sessionCookie).exchangeToMono((response) -> {
 					assertThat(response.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 					return response.releaseBody();

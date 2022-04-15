@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import io.micrometer.core.annotation.Timed;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Builder;
 import io.micrometer.core.instrument.Timer.Sample;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -135,8 +134,8 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 			Object handler = getHandler(request);
 			Set<Timed> annotations = getTimedAnnotations(handler);
 			Timer.Sample timerSample = timingContext.getTimerSample();
-			AutoTimer.apply(this.autoTimer, this.metricName, annotations,
-					(builder) -> timerSample.stop(getTimer(builder, handler, request, response, exception)));
+			AutoTimer.apply(this.autoTimer, this.metricName, annotations, (builder) -> timerSample
+					.stop(getTimer(builder, handler, request, response, exception).register(this.registry)));
 		}
 		catch (Exception ex) {
 			logger.warn("Failed to record timer metrics", ex);
@@ -156,9 +155,9 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 		return Collections.emptySet();
 	}
 
-	private Timer getTimer(Builder builder, Object handler, HttpServletRequest request, HttpServletResponse response,
-			Throwable exception) {
-		return builder.tags(this.tagsProvider.getTags(request, response, handler, exception)).register(this.registry);
+	private Timer.Builder getTimer(Builder builder, Object handler, HttpServletRequest request,
+			HttpServletResponse response, Throwable exception) {
+		return builder.tags(this.tagsProvider.getTags(request, response, handler, exception));
 	}
 
 	/**

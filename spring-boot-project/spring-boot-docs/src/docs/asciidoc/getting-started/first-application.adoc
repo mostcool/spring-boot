@@ -137,10 +137,7 @@ If you run `mvn dependency:tree` again, you see that there are now a number of a
 To finish our application, we need to create a single Java file.
 By default, Maven compiles sources from `src/main/java`, so you need to create that directory structure and then add a file named `src/main/java/MyApplication.java` to contain the following code:
 
-[source,java,indent=0,subs="verbatim"]
-----
-include::{docs-java}/gettingstarted/firstapplication/code/MyApplication.java[]
-----
+include::code:MyApplication[]
 
 Although there is not much code here, quite a lot is going on.
 We step through the important parts in the next few sections.
@@ -239,7 +236,7 @@ An uber jar packages all the classes from all the application's dependencies int
 The problem with this approach is that it becomes hard to see which libraries are in your application.
 It can also be problematic if the same filename is used (but with different content) in multiple jars.
 
-Spring Boot takes a <<executable-jar#executable-jar, different approach>> and lets you actually nest jars directly.
+Spring Boot takes a <<executable-jar#appendix.executable-jar, different approach>> and lets you actually nest jars directly.
 ****
 
 To create an executable jar, we need to add the `spring-boot-maven-plugin` to our `pom.xml`.

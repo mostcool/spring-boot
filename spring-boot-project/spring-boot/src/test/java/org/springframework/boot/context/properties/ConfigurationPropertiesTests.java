@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import javax.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -106,8 +105,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link ConfigurationProperties @ConfigurationProperties}-annotated beans.
@@ -621,7 +620,7 @@ class ConfigurationPropertiesTests {
 		this.context.addProtocolResolver(protocolResolver);
 		this.context.register(PropertiesWithResource.class);
 		this.context.refresh();
-		verify(protocolResolver).resolve(eq("application.properties"), any(ResourceLoader.class));
+		then(protocolResolver).should().resolve(eq("application.properties"), any(ResourceLoader.class));
 	}
 
 	@Test
@@ -1048,6 +1047,16 @@ class ConfigurationPropertiesTests {
 		ConstructorBindingWithOuterClassConstructorBoundProperties bean = this.context
 				.getBean(ConstructorBindingWithOuterClassConstructorBoundProperties.class);
 		assertThat(bean.getNested().getOuter().getAge()).isEqualTo(5);
+	}
+
+	@Test
+	void loadWhenConstructorBindingWithOuterClassAndNestedAutowiredShouldThrowException() {
+		MutablePropertySources sources = this.context.getEnvironment().getPropertySources();
+		Map<String, Object> source = new HashMap<>();
+		source.put("test.nested.age", "5");
+		sources.addLast(new MapPropertySource("test", source));
+		assertThatExceptionOfType(ConfigurationPropertiesBindException.class).isThrownBy(
+				() -> load(ConstructorBindingWithOuterClassConstructorBoundAndNestedAutowiredConfiguration.class));
 	}
 
 	@Test
@@ -2093,7 +2102,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties(prefix = "test")
 	static class OtherInjectedProperties {
 
@@ -2111,7 +2119,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties(prefix = "test")
 	@Validated
 	static class ConstructorParameterProperties {
@@ -2136,7 +2143,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties(prefix = "test")
 	static class ConstructorParameterWithUnitProperties {
 
@@ -2168,7 +2174,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties(prefix = "test")
 	static class ConstructorParameterWithFormatProperties {
 
@@ -2193,7 +2198,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties(prefix = "test")
 	@Validated
 	static class ConstructorParameterValidatedProperties {
@@ -2377,7 +2381,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties("test")
 	static class NestedConstructorProperties {
 
@@ -2415,7 +2418,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties("test")
 	static class NestedMultipleConstructorProperties {
 
@@ -2464,7 +2466,6 @@ class ConfigurationPropertiesTests {
 	}
 
 	@ConfigurationProperties("test")
-	@ConstructorBinding
 	static class ConstructorBindingWithOuterClassConstructorBoundProperties {
 
 		private final Nested nested;
@@ -2493,6 +2494,36 @@ class ConfigurationPropertiesTests {
 
 	}
 
+	@ConfigurationProperties("test")
+	static class ConstructorBindingWithOuterClassConstructorBoundAndNestedAutowired {
+
+		private final Nested nested;
+
+		ConstructorBindingWithOuterClassConstructorBoundAndNestedAutowired(Nested nested) {
+			this.nested = nested;
+		}
+
+		Nested getNested() {
+			return this.nested;
+		}
+
+		static class Nested {
+
+			private int age;
+
+			@Autowired
+			Nested(int age) {
+				this.age = age;
+			}
+
+			int getAge() {
+				return this.age;
+			}
+
+		}
+
+	}
+
 	static class Outer {
 
 		private int age;
@@ -2509,6 +2540,11 @@ class ConfigurationPropertiesTests {
 
 	@EnableConfigurationProperties(ConstructorBindingWithOuterClassConstructorBoundProperties.class)
 	static class ConstructorBindingWithOuterClassConstructorBoundConfiguration {
+
+	}
+
+	@EnableConfigurationProperties(ConstructorBindingWithOuterClassConstructorBoundAndNestedAutowired.class)
+	static class ConstructorBindingWithOuterClassConstructorBoundAndNestedAutowiredConfiguration {
 
 	}
 
@@ -2614,7 +2650,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties("test")
 	static class SyntheticNestedConstructorProperties {
 
@@ -2668,7 +2703,6 @@ class ConfigurationPropertiesTests {
 
 	}
 
-	@ConstructorBinding
 	@ConfigurationProperties("test")
 	static class DeducedNestedConstructorProperties {
 

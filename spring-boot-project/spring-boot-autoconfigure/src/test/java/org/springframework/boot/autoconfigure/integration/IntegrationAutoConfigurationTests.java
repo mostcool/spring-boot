@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
 
 import org.springframework.beans.DirectFieldAccessor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -50,7 +51,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.integration.annotation.IntegrationComponentScan;
 import org.springframework.integration.annotation.MessagingGateway;
 import org.springframework.integration.annotation.ServiceActivator;
@@ -58,8 +58,10 @@ import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.channel.QueueChannel;
 import org.springframework.integration.config.IntegrationManagementConfigurer;
 import org.springframework.integration.context.IntegrationContextUtils;
+import org.springframework.integration.core.MessageSource;
 import org.springframework.integration.endpoint.MessageProcessorMessageSource;
 import org.springframework.integration.gateway.RequestReplyExchanger;
+import org.springframework.integration.handler.MessageProcessor;
 import org.springframework.integration.rsocket.ClientRSocketConnector;
 import org.springframework.integration.rsocket.IntegrationRSocketEndpoint;
 import org.springframework.integration.rsocket.ServerRSocketConnector;
@@ -210,6 +212,7 @@ class IntegrationAutoConfigurationTests {
 				.withPropertyValues("spring.datasource.generate-unique-name=true",
 						"spring.integration.jdbc.initialize-schema=never")
 				.run((context) -> {
+					assertThat(context).doesNotHaveBean(IntegrationDataSourceScriptDatabaseInitializer.class);
 					IntegrationProperties properties = context.getBean(IntegrationProperties.class);
 					assertThat(properties.getJdbc().getInitializeSchema()).isEqualTo(DatabaseInitializationMode.NEVER);
 					JdbcOperations jdbc = context.getBean(JdbcOperations.class);
@@ -383,18 +386,6 @@ class IntegrationAutoConfigurationTests {
 	}
 
 	@Test
-	@Deprecated
-	@SuppressWarnings("deprecation")
-	void whenTheUserDefinesTheirOwnIntegrationDataSourceInitializerThenTheAutoConfiguredInitializerBacksOff() {
-		this.contextRunner.withUserConfiguration(CustomIntegrationDataSourceInitializerConfiguration.class)
-				.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class,
-						DataSourceTransactionManagerAutoConfiguration.class))
-				.run((context) -> assertThat(context)
-						.doesNotHaveBean(IntegrationDataSourceScriptDatabaseInitializer.class)
-						.hasSingleBean(IntegrationDataSourceInitializer.class).hasBean("customInitializer"));
-	}
-
-	@Test
 	void whenTheUserDefinesTheirOwnDatabaseInitializerThenTheAutoConfiguredIntegrationInitializerRemains() {
 		this.contextRunner.withUserConfiguration(CustomDatabaseInitializerConfiguration.class)
 				.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class,
@@ -525,9 +516,8 @@ class IntegrationAutoConfigurationTests {
 	static class MessageSourceConfiguration {
 
 		@Bean
-		org.springframework.integration.core.MessageSource<?> myMessageSource() {
-			return new MessageProcessorMessageSource(
-					mock(org.springframework.integration.handler.MessageProcessor.class));
+		MessageSource<?> myMessageSource() {
+			return new MessageProcessorMessageSource(mock(MessageProcessor.class));
 		}
 
 	}
@@ -540,7 +530,7 @@ class IntegrationAutoConfigurationTests {
 			return new IntegrationRSocketEndpoint() {
 
 				@Override
-				public reactor.core.publisher.Mono<Void> handleMessage(Message<?> message) {
+				public Mono<Void> handleMessage(Message<?> message) {
 					return null;
 				}
 
@@ -571,18 +561,6 @@ class IntegrationAutoConfigurationTests {
 		@Bean
 		DataSourceScriptDatabaseInitializer customInitializer(DataSource dataSource) {
 			return new DataSourceScriptDatabaseInitializer(dataSource, new DatabaseInitializationSettings());
-		}
-
-	}
-
-	@Deprecated
-	@Configuration(proxyBeanMethods = false)
-	static class CustomIntegrationDataSourceInitializerConfiguration {
-
-		@Bean
-		IntegrationDataSourceInitializer customInitializer(DataSource dataSource, ResourceLoader resourceLoader,
-				IntegrationProperties properties) {
-			return new IntegrationDataSourceInitializer(dataSource, resourceLoader, properties);
 		}
 
 	}

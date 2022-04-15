@@ -35,7 +35,7 @@ dependencies {
 	optional("io.r2dbc:r2dbc-pool")
 	optional("io.rsocket:rsocket-core")
 	optional("io.rsocket:rsocket-transport-netty")
-	optional("io.undertow:undertow-servlet-jakartaee9") {
+	optional("io.undertow:undertow-servlet-jakarta") {
 		exclude group: "org.jboss.spec.javax.annotation", module: "jboss-annotations-api_1.3_spec"
 	}
 	optional("jakarta.jms:jakarta.jms-api")
@@ -56,8 +56,8 @@ dependencies {
 	optional("org.apache.tomcat.embed:tomcat-embed-jasper")
 	optional("org.apache.tomcat:tomcat-jdbc")
 	optional("org.assertj:assertj-core")
-	optional("org.codehaus.groovy:groovy")
-	optional("org.codehaus.groovy:groovy-xml")
+	optional("org.apache.groovy:groovy")
+	optional("org.apache.groovy:groovy-xml")
 	optional("org.eclipse.jetty:jetty-servlets")
 	optional("org.eclipse.jetty:jetty-util")
 	optional("org.eclipse.jetty:jetty-webapp") {
@@ -73,6 +73,9 @@ dependencies {
 	optional("org.hamcrest:hamcrest-library")
 	optional("org.hibernate:hibernate-core-jakarta")
 	optional("org.hibernate.validator:hibernate-validator")
+	optional("org.jooq:jooq") {
+		exclude(group: "javax.xml.bind", module: "jaxb-api")
+	}
 	optional("org.liquibase:liquibase-core") {
 		exclude(group: "javax.xml.bind", module: "jaxb-api")
 	}
@@ -115,6 +118,7 @@ dependencies {
 	testImplementation("mysql:mysql-connector-java")
 	testImplementation("net.sourceforge.jtds:jtds")
 	testImplementation("org.apache.derby:derby")
+	testImplementation("org.apache.derby:derbytools")
 	testImplementation("org.awaitility:awaitility")
 	testImplementation("org.eclipse.jetty:jetty-client")
 	testImplementation("org.eclipse.jetty.http2:http2-client")
@@ -149,26 +153,37 @@ task extractTomcatConfigProperties(type: Sync) {
 	}
 }
 
+def syncJavaTemplates = tasks.register("syncJavaTemplates", Sync) {
+	from("src/main/javaTemplates")
+	into("build/generated-sources/main")
+	def properties = ["springBootVersion": project.version]
+	expand(properties)
+	inputs.properties(properties)
+}
+
+tasks.named("checkFormatMain") {
+	def generatedSources = fileTree("build/generated-sources/main")
+	// Exclude source generated from the templates as expand(properties) changes line endings on Windows
+	exclude { candidate -> generatedSources.contains(candidate.file) }
+	// Add the templates to check that the input is correctly formatted
+	source(fileTree("src/main/javaTemplates"))
+}
+
+plugins.withType(EclipsePlugin) {
+	eclipse {
+		synchronizationTasks syncJavaTemplates
+	}
+}
+
 sourceSets {
+	main {
+		java {
+			srcDirs syncJavaTemplates
+		}
+	}
 	test {
 		output.dir(tomcatConfigProperties, builtBy: "extractTomcatConfigProperties")
 	}
-}
-
-compileKotlin {
-	kotlinOptions {
-		jvmTarget = 1.8
-	}
-}
-
-compileTestKotlin {
-	kotlinOptions {
-		jvmTarget = 1.8
-	}
-}
-
-compileJava {
-	doLast new org.springframework.boot.build.log4j2.ReproducibleLog4j2PluginsDatAction()
 }
 
 test {

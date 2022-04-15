@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,19 @@
 
 package org.springframework.boot.autoconfigure.elasticsearch;
 
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -41,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Brian Clozel
  * @author Vedran Pavic
  * @author Evgeniy Cheban
+ * @author Filip Hrisafov
  */
 @Testcontainers(disabledWithoutDocker = true)
 class ElasticsearchRestClientAutoConfigurationIntegrationTests {
@@ -53,12 +59,14 @@ class ElasticsearchRestClientAutoConfigurationIntegrationTests {
 			.withConfiguration(AutoConfigurations.of(ElasticsearchRestClientAutoConfiguration.class));
 
 	@Test
-	void restClientCanQueryElasticsearchNode() {
+	@SuppressWarnings("deprecation")
+	void restHighLevelClientCanQueryElasticsearchNode() {
 		this.contextRunner
 				.withPropertyValues("spring.elasticsearch.uris=" + elasticsearch.getHttpHostAddress(),
 						"spring.elasticsearch.connection-timeout=120s", "spring.elasticsearch.socket-timeout=120s")
 				.run((context) -> {
-					RestHighLevelClient client = context.getBean(RestHighLevelClient.class);
+					org.elasticsearch.client.RestHighLevelClient client = context
+							.getBean(org.elasticsearch.client.RestHighLevelClient.class);
 					Map<String, String> source = new HashMap<>();
 					source.put("a", "alpha");
 					source.put("b", "bravo");
@@ -66,6 +74,25 @@ class ElasticsearchRestClientAutoConfigurationIntegrationTests {
 					client.index(index, RequestOptions.DEFAULT);
 					GetRequest getRequest = new GetRequest("test").id("1");
 					assertThat(client.get(getRequest, RequestOptions.DEFAULT).isExists()).isTrue();
+				});
+	}
+
+	@Test
+	void restClientCanQueryElasticsearchNode() {
+		this.contextRunner
+				.withPropertyValues("spring.elasticsearch.uris=" + elasticsearch.getHttpHostAddress(),
+						"spring.elasticsearch.connection-timeout=120s", "spring.elasticsearch.socket-timeout=120s")
+				.run((context) -> {
+					RestClient client = context.getBean(RestClient.class);
+					Request index = new Request("PUT", "/test/_doc/2");
+					index.setJsonEntity("{" + "  \"a\": \"alpha\"," + "  \"b\": \"bravo\"" + "}");
+					client.performRequest(index);
+					Request getRequest = new Request("GET", "/test/_doc/2");
+					Response response = client.performRequest(getRequest);
+					try (InputStream input = response.getEntity().getContent()) {
+						JsonNode result = new ObjectMapper().readTree(input);
+						assertThat(result.path("found").asBoolean()).isTrue();
+					}
 				});
 	}
 

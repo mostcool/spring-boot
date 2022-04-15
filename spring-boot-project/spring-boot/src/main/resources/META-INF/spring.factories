@@ -65,7 +65,6 @@ org.springframework.boot.diagnostics.analyzer.BeanNotOfRequiredTypeFailureAnalyz
 org.springframework.boot.diagnostics.analyzer.BindFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.BindValidationFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.UnboundConfigurationPropertyFailureAnalyzer,\
-org.springframework.boot.diagnostics.analyzer.ConnectorStartFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.MutuallyExclusiveConfigurationPropertiesFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.NoSuchMethodFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.NoUniqueBeanDefinitionFailureAnalyzer,\
@@ -74,7 +73,9 @@ org.springframework.boot.diagnostics.analyzer.ValidationExceptionFailureAnalyzer
 org.springframework.boot.diagnostics.analyzer.InvalidConfigurationPropertyNameFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.InvalidConfigurationPropertyValueFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.PatternParseFailureAnalyzer,\
-org.springframework.boot.liquibase.LiquibaseChangelogMissingFailureAnalyzer
+org.springframework.boot.liquibase.LiquibaseChangelogMissingFailureAnalyzer,\
+org.springframework.boot.web.context.MissingWebServerFactoryBeanFailureAnalyzer,\
+org.springframework.boot.web.embedded.tomcat.ConnectorStartFailureAnalyzer,\
 
 # Failure Analysis Reporters
 org.springframework.boot.diagnostics.FailureAnalysisReporter=\
@@ -83,7 +84,6 @@ org.springframework.boot.diagnostics.LoggingFailureAnalysisReporter
 # Database Initializer Detectors
 org.springframework.boot.sql.init.dependency.DatabaseInitializerDetector=\
 org.springframework.boot.flyway.FlywayDatabaseInitializerDetector,\
-org.springframework.boot.jdbc.AbstractDataSourceInitializerDatabaseInitializerDetector,\
 org.springframework.boot.jdbc.init.DataSourceScriptDatabaseInitializerDetector,\
 org.springframework.boot.liquibase.LiquibaseDatabaseInitializerDetector,\
 org.springframework.boot.orm.jpa.JpaDatabaseInitializerDetector,\
@@ -93,4 +93,5 @@ org.springframework.boot.r2dbc.init.R2dbcScriptDatabaseInitializerDetector
 org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitializationDetector=\
 org.springframework.boot.sql.init.dependency.AnnotationDependsOnDatabaseInitializationDetector,\
 org.springframework.boot.jdbc.SpringJdbcDependsOnDatabaseInitializationDetector,\
+org.springframework.boot.jooq.JooqDependsOnDatabaseInitializationDetector,\
 org.springframework.boot.orm.jpa.JpaDependsOnDatabaseInitializationDetector

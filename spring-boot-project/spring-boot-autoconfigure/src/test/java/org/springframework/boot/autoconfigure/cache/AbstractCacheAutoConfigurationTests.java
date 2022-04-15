@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.hazelcast.spring.cache.HazelcastCacheManager;
+import org.cache2k.extra.spring.SpringCache2kCacheManager;
 
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -33,6 +34,7 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.couchbase.cache.CouchbaseCacheManager;
 import org.springframework.data.redis.cache.RedisCacheManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,6 +100,13 @@ abstract class AbstractCacheAutoConfigurationTests {
 		}
 
 		@Bean
+		CacheManagerCustomizer<CouchbaseCacheManager> couchbaseCacheManagerCustomizer() {
+			return new CacheManagerTestCustomizer<CouchbaseCacheManager>() {
+
+			};
+		}
+
+		@Bean
 		CacheManagerCustomizer<RedisCacheManager> redisCacheManagerCustomizer() {
 			return new CacheManagerTestCustomizer<>() {
 
@@ -107,6 +116,13 @@ abstract class AbstractCacheAutoConfigurationTests {
 		@Bean
 		CacheManagerCustomizer<HazelcastCacheManager> hazelcastCacheManagerCustomizer() {
 			return new CacheManagerTestCustomizer<>() {
+
+			};
+		}
+
+		@Bean
+		CacheManagerCustomizer<SpringCache2kCacheManager> cache2kCacheManagerCustomizer() {
+			return new CacheManagerTestCustomizer<SpringCache2kCacheManager>() {
 
 			};
 		}

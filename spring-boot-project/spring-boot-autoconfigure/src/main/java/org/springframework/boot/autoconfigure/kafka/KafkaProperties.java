@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -824,12 +824,26 @@ public class KafkaProperties {
 		 */
 		private String defaultTopic;
 
+		/**
+		 * Transaction id prefix, override the transaction id prefix in the producer
+		 * factory.
+		 */
+		private String transactionIdPrefix;
+
 		public String getDefaultTopic() {
 			return this.defaultTopic;
 		}
 
 		public void setDefaultTopic(String defaultTopic) {
 			this.defaultTopic = defaultTopic;
+		}
+
+		public String getTransactionIdPrefix() {
+			return this.transactionIdPrefix;
+		}
+
+		public void setTransactionIdPrefix(String transactionIdPrefix) {
+			this.transactionIdPrefix = transactionIdPrefix;
 		}
 
 	}
@@ -903,6 +917,12 @@ public class KafkaProperties {
 		private Duration idleEventInterval;
 
 		/**
+		 * Time between publishing idle partition consumer events (no data received for
+		 * partition).
+		 */
+		private Duration idlePartitionEventInterval;
+
+		/**
 		 * Time between checks for non-responsive consumers. If a duration suffix is not
 		 * specified, seconds will be used.
 		 */
@@ -915,16 +935,16 @@ public class KafkaProperties {
 		private Boolean logContainerConfig;
 
 		/**
-		 * Whether to suppress the entire record from being written to the log when
-		 * retries are being attempted.
-		 */
-		private boolean onlyLogRecordMetadata = true;
-
-		/**
 		 * Whether the container should fail to start if at least one of the configured
 		 * topics are not present on the broker.
 		 */
 		private boolean missingTopicsFatal = false;
+
+		/**
+		 * Whether the container stops after the current record is processed or after all
+		 * the records from the previous poll are processed.
+		 */
+		private boolean immediateStop = false;
 
 		public Type getType() {
 			return this.type;
@@ -1006,6 +1026,14 @@ public class KafkaProperties {
 			this.idleEventInterval = idleEventInterval;
 		}
 
+		public Duration getIdlePartitionEventInterval() {
+			return this.idlePartitionEventInterval;
+		}
+
+		public void setIdlePartitionEventInterval(Duration idlePartitionEventInterval) {
+			this.idlePartitionEventInterval = idlePartitionEventInterval;
+		}
+
 		public Duration getMonitorInterval() {
 			return this.monitorInterval;
 		}
@@ -1022,20 +1050,20 @@ public class KafkaProperties {
 			this.logContainerConfig = logContainerConfig;
 		}
 
-		public boolean isOnlyLogRecordMetadata() {
-			return this.onlyLogRecordMetadata;
-		}
-
-		public void setOnlyLogRecordMetadata(boolean onlyLogRecordMetadata) {
-			this.onlyLogRecordMetadata = onlyLogRecordMetadata;
-		}
-
 		public boolean isMissingTopicsFatal() {
 			return this.missingTopicsFatal;
 		}
 
 		public void setMissingTopicsFatal(boolean missingTopicsFatal) {
 			this.missingTopicsFatal = missingTopicsFatal;
+		}
+
+		public boolean isImmediateStop() {
+			return this.immediateStop;
+		}
+
+		public void setImmediateStop(boolean immediateStop) {
+			this.immediateStop = immediateStop;
 		}
 
 	}

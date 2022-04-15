@@ -154,11 +154,10 @@ bom {
 			]
 		}
 	}
-	library("Spock Framework", "2.0-groovy-3.0") {
+	library("Spock Framework", "2.2-M1-groovy-4.0") {
 		group("org.spockframework") {
-			modules = [
-				"spock-core",
-				"spock-spring"
+			imports = [
+				"spock-bom"
 			]
 		}
 	}
@@ -177,7 +176,7 @@ bom {
 			]
 		}
 	}
-	library("Testcontainers", "1.16.1") {
+	library("Testcontainers", "1.16.2") {
 		group("org.testcontainers") {
 			imports = [
 				"testcontainers-bom"

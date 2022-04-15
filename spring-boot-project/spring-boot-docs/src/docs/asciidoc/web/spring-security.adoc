@@ -6,14 +6,16 @@ To add method-level security to a web application, you can also add `@EnableGlob
 Additional information can be found in the {spring-security-docs}/servlet/authorization/method-security.html[Spring Security Reference Guide].
 
 The default `UserDetailsService` has a single user.
-The user name is `user`, and the password is random and is printed at INFO level when the application starts, as shown in the following example:
+The user name is `user`, and the password is random and is printed at WARN level when the application starts, as shown in the following example:
 
 [indent=0]
 ----
 	Using generated security password: 78fa095d-3f4c-48b1-ad50-e24c31d5cf35
+
+	This generated password is for development use only. Your security configuration must be updated before running your application in production.
 ----
 
-NOTE: If you fine-tune your logging configuration, ensure that the `org.springframework.boot.autoconfigure.security` category is set to log `INFO`-level messages.
+NOTE: If you fine-tune your logging configuration, ensure that the `org.springframework.boot.autoconfigure.security` category is set to log `WARN`-level messages.
 Otherwise, the default password is not printed.
 
 You can change the username and password by providing a `spring.security.user.name` and `spring.security.user.password`.
@@ -60,10 +62,7 @@ Spring Boot provides convenience methods that can be used to override access rul
 
 For example, you can customize your security configuration by adding something like:
 
-[source,java,indent=0,subs="verbatim"]
-----
-include::{docs-java}/features/security/springwebflux/MyWebFluxSecurityConfiguration.java[]
-----
+include::code:MyWebFluxSecurityConfiguration[]
 
 
 
@@ -139,10 +138,7 @@ By default, Spring Security's `OAuth2LoginAuthenticationFilter` only processes U
 If you want to customize the `redirect-uri` to use a different pattern, you need to provide configuration to process that custom pattern.
 For example, for servlet applications, you can add your own `SecurityFilterChain` that resembles the following:
 
-[source,java,indent=0,subs="verbatim"]
-----
-include::{docs-java}/features/security/oauth2/client/MyOAuthClientConfiguration.java[]
-----
+include::code:MyOAuthClientConfiguration[]
 
 TIP: Spring Boot auto-configures an `InMemoryOAuth2AuthorizedClientService` which is used by Spring Security for the management of client registrations.
 The `InMemoryOAuth2AuthorizedClientService` has limited capabilities and we recommend using it only for development environments.

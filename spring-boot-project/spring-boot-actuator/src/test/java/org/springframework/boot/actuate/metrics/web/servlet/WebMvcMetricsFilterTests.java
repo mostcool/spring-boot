@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import io.micrometer.core.annotation.Timed;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Meter;
@@ -51,6 +46,10 @@ import io.micrometer.core.lang.NonNull;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.prometheus.client.CollectorRegistry;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -182,7 +181,7 @@ class WebMvcMetricsFilterTests {
 
 	@Test
 	void unhandledError() {
-		assertThatCode(() -> this.mvc.perform(get("/api/c1/unhandledError/10")).andExpect(status().isOk()))
+		assertThatCode(() -> this.mvc.perform(get("/api/c1/unhandledError/10")))
 				.hasRootCauseInstanceOf(RuntimeException.class);
 		assertThat(this.registry.get("http.server.requests").tags("exception", "RuntimeException").timer().count())
 				.isEqualTo(1L);
@@ -191,8 +190,8 @@ class WebMvcMetricsFilterTests {
 	@Test
 	void unhandledServletException() {
 		assertThatCode(() -> this.mvc
-				.perform(get("/api/filterError").header(CustomBehaviorFilter.TEST_SERVLET_EXCEPTION_HEADER, "throw"))
-				.andExpect(status().isOk())).isInstanceOf(ServletException.class);
+				.perform(get("/api/filterError").header(CustomBehaviorFilter.TEST_SERVLET_EXCEPTION_HEADER, "throw")))
+						.isInstanceOf(ServletException.class);
 		Id meterId = this.registry.get("http.server.requests").tags("exception", "ServletException").timer().getId();
 		assertThat(meterId.getTag("status")).isEqualTo("500");
 	}
@@ -372,7 +371,7 @@ class WebMvcMetricsFilterTests {
 		}
 
 		@Bean
-		CustomBehaviorFilter redirectAndNotFoundFilter() {
+		CustomBehaviorFilter customBehaviorFilter() {
 			return new CustomBehaviorFilter();
 		}
 

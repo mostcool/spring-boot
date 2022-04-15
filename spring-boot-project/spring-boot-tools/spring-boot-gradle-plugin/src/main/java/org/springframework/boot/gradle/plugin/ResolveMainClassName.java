@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,6 @@ import org.gradle.api.Transformer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.ExtensionContainer;
-import org.gradle.api.plugins.JavaApplication;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
@@ -42,10 +39,8 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.work.DisableCachingByDefault;
 
-import org.springframework.boot.gradle.dsl.SpringBootExtension;
 import org.springframework.boot.loader.tools.MainClassFinder;
 
 /**
@@ -88,7 +83,17 @@ public class ResolveMainClassName extends DefaultTask {
 	 * @param classpath the classpath
 	 */
 	public void setClasspath(FileCollection classpath) {
-		this.classpath = classpath;
+		setClasspath((Object) classpath);
+	}
+
+	/**
+	 * Sets the classpath that the task will examine when resolving the main class name.
+	 * The given {@code classpath} is evaluated as per {@link Project#files(Object...)}.
+	 * @param classpath the classpath
+	 * @since 2.5.10
+	 */
+	public void setClasspath(Object classpath) {
+		this.classpath = getProject().files(classpath);
 	}
 
 	/**
@@ -141,44 +146,6 @@ public class ResolveMainClassName extends DefaultTask {
 
 	Provider<String> readMainClassName() {
 		return this.outputFile.map(new ClassNameReader());
-	}
-
-	static TaskProvider<ResolveMainClassName> registerForTask(String taskName, Project project,
-			FileCollection classpath) {
-		TaskProvider<ResolveMainClassName> resolveMainClassNameProvider = project.getTasks()
-				.register(taskName + "MainClassName", ResolveMainClassName.class, (resolveMainClassName) -> {
-					ExtensionContainer extensions = project.getExtensions();
-					resolveMainClassName.setDescription(
-							"Resolves the name of the application's main class for the " + taskName + " task.");
-					resolveMainClassName.setGroup(BasePlugin.BUILD_GROUP);
-					resolveMainClassName.setClasspath(classpath);
-					resolveMainClassName.getConfiguredMainClassName().convention(project.provider(() -> {
-						String javaApplicationMainClass = getJavaApplicationMainClass(extensions);
-						if (javaApplicationMainClass != null) {
-							return javaApplicationMainClass;
-						}
-						SpringBootExtension springBootExtension = project.getExtensions()
-								.findByType(SpringBootExtension.class);
-						return springBootExtension.getMainClass().getOrNull();
-					}));
-					resolveMainClassName.getOutputFile()
-							.set(project.getLayout().getBuildDirectory().file(taskName + "MainClassName"));
-				});
-		return resolveMainClassNameProvider;
-	}
-
-	@SuppressWarnings("deprecation")
-	private static String getJavaApplicationMainClass(ExtensionContainer extensions) {
-		JavaApplication javaApplication = extensions.findByType(JavaApplication.class);
-		if (javaApplication == null) {
-			return null;
-		}
-		try {
-			return javaApplication.getMainClass().getOrNull();
-		}
-		catch (NoSuchMethodError ex) {
-			return javaApplication.getMainClassName();
-		}
 	}
 
 	private static final class ClassNameReader implements Transformer<String, RegularFile> {

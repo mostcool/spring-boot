@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -80,7 +79,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-
 import org.apache.catalina.webresources.TomcatURLStreamHandlerFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -146,7 +144,6 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.FileCopyUtils;
-import org.springframework.util.SocketUtils;
 import org.springframework.util.StreamUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -158,10 +155,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 /**
  * Base for testing classes that extends {@link AbstractServletWebServerFactory}.
@@ -170,6 +167,7 @@ import static org.mockito.Mockito.verify;
  * @author Greg Turnquist
  * @author Andy Wilkinson
  * @author Raja Kolli
+ * @author Scott Frederick
  */
 @ExtendWith(OutputCaptureExtension.class)
 public abstract class AbstractServletWebServerFactoryTests {
@@ -325,11 +323,10 @@ public abstract class AbstractServletWebServerFactoryTests {
 	void specificPort() throws Exception {
 		AbstractServletWebServerFactory factory = getFactory();
 		int specificPort = doWithRetry(() -> {
-			int port = SocketUtils.findAvailableTcpPort(41000);
-			factory.setPort(port);
+			factory.setPort(0);
 			this.webServer = factory.getWebServer(exampleServletRegistration());
 			this.webServer.start();
-			return port;
+			return this.webServer.getPort();
 		});
 		assertThat(getResponse("http://localhost:" + specificPort + "/hello")).isEqualTo("Hello World");
 		assertThat(this.webServer.getPort()).isEqualTo(specificPort);
@@ -382,7 +379,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 		this.webServer.start();
 		InOrder ordered = inOrder((Object[]) initializers);
 		for (ServletContextInitializer initializer : initializers) {
-			ordered.verify(initializer).onStartup(any(ServletContext.class));
+			then(initializer).should(ordered).onStartup(any(ServletContext.class));
 		}
 	}
 
@@ -564,6 +561,23 @@ public abstract class AbstractServletWebServerFactoryTests {
 	}
 
 	@Test
+	void pemKeyStoreAndTrustStore() throws Exception {
+		AbstractServletWebServerFactory factory = getFactory();
+		addTestTxtFile(factory);
+		factory.setSsl(getSsl("classpath:test-cert.pem", "classpath:test-key.pem"));
+		this.webServer = factory.getWebServer();
+		this.webServer.start();
+		KeyStore keyStore = KeyStore.getInstance("pkcs12");
+		loadStore(keyStore, new FileSystemResource("src/test/resources/test.p12"));
+		SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
+				new SSLContextBuilder().loadTrustMaterial(null, new TrustSelfSignedStrategy())
+						.loadKeyMaterial(keyStore, "secret".toCharArray()).build());
+		HttpClient httpClient = this.httpClientBuilder.get().setSSLSocketFactory(socketFactory).build();
+		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
+		assertThat(getResponse(getLocalUrl("https", "/test.txt"), requestFactory)).isEqualTo("test");
+	}
+
+	@Test
 	void sslNeedsClientAuthenticationSucceedsWithClientCertificate() throws Exception {
 		AbstractServletWebServerFactory factory = getFactory();
 		factory.setRegisterDefaultServlet(true);
@@ -650,8 +664,8 @@ public abstract class AbstractServletWebServerFactoryTests {
 		HttpClient httpClient = this.httpClientBuilder.get().setSSLSocketFactory(socketFactory).build();
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
 		assertThat(getResponse(getLocalUrl("https", "/test.txt"), requestFactory)).isEqualTo("test");
-		verify(sslStoreProvider, atLeastOnce()).getKeyStore();
-		verify(sslStoreProvider, atLeastOnce()).getTrustStore();
+		then(sslStoreProvider).should(atLeastOnce()).getKeyStore();
+		then(sslStoreProvider).should(atLeastOnce()).getTrustStore();
 	}
 
 	@Test
@@ -711,6 +725,16 @@ public abstract class AbstractServletWebServerFactoryTests {
 		if (supportedProtocols != null) {
 			ssl.setEnabledProtocols(supportedProtocols);
 		}
+		return ssl;
+	}
+
+	private Ssl getSsl(String cert, String privateKey) {
+		Ssl ssl = new Ssl();
+		ssl.setClientAuth(ClientAuth.NEED);
+		ssl.setCertificate(cert);
+		ssl.setCertificatePrivateKey(privateKey);
+		ssl.setTrustCertificate(cert);
+		ssl.setKeyStorePassword("secret");
 		return ssl;
 	}
 
@@ -1095,7 +1119,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 		this.webServer = getFactory().getWebServer((servletContext) -> servletContext.addListener(listener));
 		this.webServer.start();
 		this.webServer.stop();
-		verify(listener).contextDestroyed(any(ServletContextEvent.class));
+		then(listener).should().contextDestroyed(any(ServletContextEvent.class));
 	}
 
 	@Test
@@ -1462,9 +1486,8 @@ public abstract class AbstractServletWebServerFactoryTests {
 	protected final void doWithBlockedPort(BlockedPortAction action) throws Exception {
 		ServerSocket serverSocket = new ServerSocket();
 		int blockedPort = doWithRetry(() -> {
-			int port = SocketUtils.findAvailableTcpPort(40000);
-			serverSocket.bind(new InetSocketAddress(port));
-			return port;
+			serverSocket.bind(null);
+			return serverSocket.getLocalPort();
 		});
 		try {
 			action.run(blockedPort);

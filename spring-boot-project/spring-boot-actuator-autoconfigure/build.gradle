@@ -36,7 +36,6 @@ dependencies {
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
 	optional("ch.qos.logback:logback-classic")
-	optional("com.couchbase.client:java-client")
 	optional("com.datastax.oss:java-driver-core") {
 		exclude group: "org.slf4j", module: "jcl-over-slf4j"
 	}
@@ -48,7 +47,12 @@ dependencies {
 	optional("com.zaxxer:HikariCP")
 	optional("io.dropwizard.metrics:metrics-jmx")
 	optional("io.lettuce:lettuce-core")
+	optional("io.micrometer:micrometer-observation")
 	optional("io.micrometer:micrometer-core")
+	optional("io.micrometer:micrometer-tracing-api")
+	optional("io.micrometer:micrometer-tracing-bridge-brave")
+	optional("io.micrometer:micrometer-tracing-bridge-otel")
+	optional("io.micrometer:micrometer-tracing-reporter-wavefront")
 	optional("io.micrometer:micrometer-registry-appoptics")
 	optional("io.micrometer:micrometer-registry-atlas") {
 		exclude group: "javax.inject", module: "javax.inject"
@@ -74,6 +78,8 @@ dependencies {
 	optional("io.micrometer:micrometer-registry-signalfx")
 	optional("io.micrometer:micrometer-registry-statsd")
 	optional("io.micrometer:micrometer-registry-wavefront")
+	optional("io.zipkin.reporter2:zipkin-sender-urlconnection")
+	optional("io.opentelemetry:opentelemetry-exporter-zipkin")
 	optional("io.projectreactor.netty:reactor-netty-http")
 	optional("io.r2dbc:r2dbc-pool")
 	optional("io.r2dbc:r2dbc-spi")
@@ -93,6 +99,8 @@ dependencies {
 	optional("org.apache.tomcat.embed:tomcat-embed-el")
 	optional("org.apache.tomcat:tomcat-jdbc")
 	optional("org.aspectj:aspectjweaver")
+	optional("org.cache2k:cache2k-micrometer")
+	optional("org.cache2k:cache2k-spring")
 	optional("org.eclipse.jetty:jetty-server") {
 		exclude group: "javax.servlet", module: "javax.servlet-api"
 	}
@@ -120,6 +128,7 @@ dependencies {
 	optional("org.springframework.data:spring-data-cassandra") {
 		exclude group: "org.slf4j", module: "jcl-over-slf4j"
 	}
+	optional("org.springframework.data:spring-data-couchbase")
 	optional("org.springframework.data:spring-data-jpa")
 	optional("org.springframework.data:spring-data-ldap")
 	optional("org.springframework.data:spring-data-mongodb")
@@ -141,14 +150,21 @@ dependencies {
 	testImplementation("com.squareup.okhttp3:mockwebserver")
 	testImplementation("com.jayway.jsonpath:json-path")
 	testImplementation("io.undertow:undertow-core")
-	testImplementation("io.undertow:undertow-servlet-jakartaee9") {
+	testImplementation("io.undertow:undertow-servlet-jakarta") {
 		exclude group: "org.jboss.spec.javax.annotation", module: "jboss-annotations-api_1.3_spec"
 	}
 	testImplementation("jakarta.xml.bind:jakarta.xml.bind-api")
+	testImplementation("org.apache.activemq:artemis-jakarta-client") {
+		exclude group: "commons-logging", module: "commons-logging"
+	}
+	testImplementation("org.apache.activemq:artemis-jakarta-server") {
+		exclude group: "commons-logging", module: "commons-logging"
+	}
 	testImplementation("org.apache.logging.log4j:log4j-to-slf4j")
 	testImplementation("org.aspectj:aspectjrt")
 	testImplementation("org.assertj:assertj-core")
 	testImplementation("org.awaitility:awaitility")
+	testImplementation("org.cache2k:cache2k-api")
 	testImplementation("org.eclipse.jetty:jetty-webapp") {
 		exclude group: "javax.servlet", module: "javax.servlet-api"
 	}
@@ -170,6 +186,7 @@ dependencies {
 
 	testRuntimeOnly("jakarta.management.j2ee:jakarta.management.j2ee-api")
 	testRuntimeOnly("jakarta.transaction:jakarta.transaction-api")
+	testRuntimeOnly("org.cache2k:cache2k-core")
 	testRuntimeOnly("org.springframework.security:spring-security-oauth2-jose")
 	testRuntimeOnly("org.springframework.security:spring-security-oauth2-resource-server")
 	testRuntimeOnly("org.springframework.security:spring-security-saml2-service-provider")

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,9 +113,6 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 		if (!enablementOutcome.isMatch()) {
 			return enablementOutcome;
 		}
-		if (CloudPlatform.CLOUD_FOUNDRY.isActive(environment)) {
-			return ConditionOutcome.match(message.because("application is running on Cloud Foundry"));
-		}
 		Set<EndpointExposure> exposuresToCheck = getExposuresToCheck(conditionAnnotation);
 		Set<ExposureFilter> exposureFilters = getExposureFilters(environment);
 		for (ExposureFilter exposureFilter : exposureFilters) {
@@ -168,6 +165,9 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 			if (environment.getProperty(JMX_ENABLED_KEY, Boolean.class, false)) {
 				exposureFilters.add(new ExposureFilter(environment, EndpointExposure.JMX));
 			}
+			if (CloudPlatform.CLOUD_FOUNDRY.isActive(environment)) {
+				exposureFilters.add(new ExposureFilter(environment, EndpointExposure.CLOUD_FOUNDRY));
+			}
 			exposureFilters.add(new ExposureFilter(environment, EndpointExposure.WEB));
 			exposureFiltersCache.put(environment, exposureFilters);
 		}
@@ -181,9 +181,16 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private ExposureFilter(Environment environment, EndpointExposure exposure) {
 			super((Class) ExposableEndpoint.class, environment,
-					"management.endpoints." + exposure.name().toLowerCase() + ".exposure",
-					exposure.getDefaultIncludes());
+					"management.endpoints." + getCanonicalName(exposure) + ".exposure", exposure.getDefaultIncludes());
 			this.exposure = exposure;
+
+		}
+
+		private static String getCanonicalName(EndpointExposure exposure) {
+			if (EndpointExposure.CLOUD_FOUNDRY.equals(exposure)) {
+				return "cloud-foundry";
+			}
+			return exposure.name().toLowerCase();
 		}
 
 		EndpointExposure getExposure() {

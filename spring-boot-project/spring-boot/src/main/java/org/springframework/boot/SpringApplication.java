@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -60,7 +61,9 @@ import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.GenericTypeResolver;
+import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.CommandLinePropertySource;
 import org.springframework.core.env.CompositePropertySource;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -341,22 +344,11 @@ public class SpringApplication {
 				"Environment prefix cannot be set via properties.");
 		bindToSpringApplication(environment);
 		if (!this.isCustomEnvironment) {
-			environment = convertEnvironment(environment);
+			EnvironmentConverter environmentConverter = new EnvironmentConverter(getClassLoader());
+			environment = environmentConverter.convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
 		}
 		ConfigurationPropertySources.attach(environment);
 		return environment;
-	}
-
-	/**
-	 * Convert the given {@link ConfigurableEnvironment environment} to an application
-	 * environment that doesn't attempt to resolve profile properties directly.
-	 * @param environment the environment to convert
-	 * @return the converted environment
-	 * @since 2.5.7
-	 */
-	public StandardEnvironment convertEnvironment(ConfigurableEnvironment environment) {
-		return new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment,
-				deduceEnvironmentClass());
 	}
 
 	private Class<? extends StandardEnvironment> deduceEnvironmentClass() {
@@ -530,7 +522,8 @@ public class SpringApplication {
 
 	private void configureIgnoreBeanInfo(ConfigurableEnvironment environment) {
 		if (System.getProperty(CachedIntrospectionResults.IGNORE_BEANINFO_PROPERTY_NAME) == null) {
-			Boolean ignore = environment.getProperty("spring.beaninfo.ignore", Boolean.class, Boolean.TRUE);
+			Boolean ignore = environment.getProperty(CachedIntrospectionResults.IGNORE_BEANINFO_PROPERTY_NAME,
+					Boolean.class, Boolean.TRUE);
 			System.setProperty(CachedIntrospectionResults.IGNORE_BEANINFO_PROPERTY_NAME, ignore.toString());
 		}
 	}
@@ -629,17 +622,24 @@ public class SpringApplication {
 	protected void logStartupProfileInfo(ConfigurableApplicationContext context) {
 		Log log = getApplicationLog();
 		if (log.isInfoEnabled()) {
-			String[] activeProfiles = context.getEnvironment().getActiveProfiles();
+			List<String> activeProfiles = quoteProfiles(context.getEnvironment().getActiveProfiles());
 			if (ObjectUtils.isEmpty(activeProfiles)) {
-				String[] defaultProfiles = context.getEnvironment().getDefaultProfiles();
-				log.info("No active profile set, falling back to default profiles: "
-						+ StringUtils.arrayToCommaDelimitedString(defaultProfiles));
+				List<String> defaultProfiles = quoteProfiles(context.getEnvironment().getDefaultProfiles());
+				String message = String.format("%s default %s: ", defaultProfiles.size(),
+						(defaultProfiles.size() <= 1) ? "profile" : "profiles");
+				log.info("No active profile set, falling back to " + message
+						+ StringUtils.collectionToDelimitedString(defaultProfiles, ", "));
 			}
 			else {
-				log.info("The following profiles are active: "
-						+ StringUtils.arrayToCommaDelimitedString(activeProfiles));
+				String message = (activeProfiles.size() == 1) ? "1 profile is active: "
+						: activeProfiles.size() + " profiles are active: ";
+				log.info("The following " + message + StringUtils.collectionToDelimitedString(activeProfiles, ", "));
 			}
 		}
+	}
+
+	private List<String> quoteProfiles(String[] profiles) {
+		return Arrays.stream(profiles).map((profile) -> "\"" + profile + "\"").collect(Collectors.toList());
 	}
 
 	/**
@@ -784,6 +784,7 @@ public class SpringApplication {
 				reportFailure(getExceptionReporters(context), exception);
 				if (context != null) {
 					context.close();
+					shutdownHook.deregisterFailedApplicationContext(context);
 				}
 			}
 		}
@@ -1321,9 +1322,10 @@ public class SpringApplication {
 	 * Static helper that can be used to exit a {@link SpringApplication} and obtain a
 	 * code indicating success (0) or otherwise. Does not throw exceptions but should
 	 * print stack traces of any encountered. Applies the specified
-	 * {@link ExitCodeGenerator} in addition to any Spring beans that implement
-	 * {@link ExitCodeGenerator}. In the case of multiple exit codes the highest value
-	 * will be used (or if all values are negative, the lowest value will be used)
+	 * {@link ExitCodeGenerator ExitCodeGenerators} in addition to any Spring beans that
+	 * implement {@link ExitCodeGenerator}. When multiple generators are available, the
+	 * first non-zero exit code is used. Generators ordered based on their {@link Ordered}
+	 * implementation and {@link Order @Order} annotation.
 	 * @param context the context to close if possible
 	 * @param exitCodeGenerators exit code generators
 	 * @return the outcome (0 if successful)

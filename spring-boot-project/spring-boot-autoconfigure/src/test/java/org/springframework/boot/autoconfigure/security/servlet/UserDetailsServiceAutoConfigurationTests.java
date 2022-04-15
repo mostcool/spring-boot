@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ import org.springframework.security.authentication.TestingAuthenticationProvider
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -46,6 +45,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -157,6 +157,14 @@ class UserDetailsServiceAutoConfigurationTests {
 	}
 
 	@Test
+	void userDetailsServiceWhenRelyingPartyRegistrationRepositoryBeanPresent() {
+		this.contextRunner
+				.withBean(RelyingPartyRegistrationRepository.class,
+						() -> mock(RelyingPartyRegistrationRepository.class))
+				.run(((context) -> assertThat(context).doesNotHaveBean(InMemoryUserDetailsManager.class)));
+	}
+
+	@Test
 	void generatedPasswordShouldNotBePrintedIfAuthenticationManagerBuilderIsUsed(CapturedOutput output) {
 		this.contextRunner.withUserConfiguration(TestConfigWithAuthenticationManagerBuilder.class)
 				.run(((context) -> assertThat(output).doesNotContain("Using generated security password: ")));
@@ -261,8 +269,9 @@ class UserDetailsServiceAutoConfigurationTests {
 	static class TestConfigWithAuthenticationManagerBuilder {
 
 		@Bean
-		WebSecurityConfigurerAdapter webSecurityConfigurerAdapter() {
-			return new WebSecurityConfigurerAdapter() {
+		@SuppressWarnings("deprecation")
+		org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter webSecurityConfigurerAdapter() {
+			return new org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter() {
 				@Override
 				protected void configure(AuthenticationManagerBuilder auth) throws Exception {
 					auth.inMemoryAuthentication().withUser("hero").password("{noop}hero").roles("HERO", "USER").and()

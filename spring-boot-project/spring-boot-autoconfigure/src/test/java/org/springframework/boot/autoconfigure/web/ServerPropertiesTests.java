@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,12 +26,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.undertow.UndertowOptions;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
-import io.undertow.UndertowOptions;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.core.StandardEngine;
@@ -337,6 +336,12 @@ class ServerPropertiesTests {
 	void testCustomizeNettyIdleTimeout() {
 		bind("server.netty.idle-timeout", "10s");
 		assertThat(this.properties.getNetty().getIdleTimeout()).isEqualTo(Duration.ofSeconds(10));
+	}
+
+	@Test
+	void testCustomizeNettyMaxKeepAliveRequests() {
+		bind("server.netty.max-keep-alive-requests", "100");
+		assertThat(this.properties.getNetty().getMaxKeepAliveRequests()).isEqualTo(100);
 	}
 
 	@Test

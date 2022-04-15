@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import reactor.netty.http.client.HttpClient;
 
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -31,9 +32,8 @@ import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchPropert
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.elasticsearch.backend.elasticsearch7.client.reactive.ReactiveElasticsearchClient;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
+import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsearchClient;
 import org.springframework.data.elasticsearch.client.reactive.ReactiveRestClients;
 import org.springframework.data.elasticsearch.client.reactive.ReactiveRestClients.WebClientConfigurationCallback;
 import org.springframework.util.Assert;
@@ -49,19 +49,16 @@ import org.springframework.web.reactive.function.client.WebClient;
  * @author Brian Clozel
  * @since 2.2.0
  */
-@SuppressWarnings("deprecation")
-@Configuration(proxyBeanMethods = false)
+@AutoConfiguration
 @ConditionalOnClass({ ReactiveRestClients.class, WebClient.class, HttpClient.class })
-@EnableConfigurationProperties({ ElasticsearchProperties.class, ReactiveElasticsearchRestClientProperties.class,
-		DeprecatedReactiveElasticsearchRestClientProperties.class })
+@EnableConfigurationProperties({ ElasticsearchProperties.class, ReactiveElasticsearchRestClientProperties.class })
 public class ReactiveElasticsearchRestClientAutoConfiguration {
 
 	private final ConsolidatedProperties properties;
 
 	ReactiveElasticsearchRestClientAutoConfiguration(ElasticsearchProperties properties,
-			ReactiveElasticsearchRestClientProperties restClientProperties,
-			DeprecatedReactiveElasticsearchRestClientProperties reactiveProperties) {
-		this.properties = new ConsolidatedProperties(properties, restClientProperties, reactiveProperties);
+			ReactiveElasticsearchRestClientProperties restClientProperties) {
+		this.properties = new ConsolidatedProperties(properties, restClientProperties);
 	}
 
 	@Bean
@@ -103,24 +100,17 @@ public class ReactiveElasticsearchRestClientAutoConfiguration {
 
 		private final ReactiveElasticsearchRestClientProperties restClientProperties;
 
-		private final DeprecatedReactiveElasticsearchRestClientProperties deprecatedProperties;
-
 		private final List<URI> uris;
 
 		private ConsolidatedProperties(ElasticsearchProperties properties,
-				ReactiveElasticsearchRestClientProperties restClientProperties,
-				DeprecatedReactiveElasticsearchRestClientProperties deprecatedreactiveProperties) {
+				ReactiveElasticsearchRestClientProperties restClientProperties) {
 			this.properties = properties;
 			this.restClientProperties = restClientProperties;
-			this.deprecatedProperties = deprecatedreactiveProperties;
 			this.uris = properties.getUris().stream().map((s) -> s.startsWith("http") ? s : "http://" + s)
 					.map(URI::create).collect(Collectors.toList());
 		}
 
 		private List<String> getEndpoints() {
-			if (this.deprecatedProperties.isCustomized()) {
-				return this.deprecatedProperties.getEndpoints();
-			}
 			return this.uris.stream().map(this::getEndpoint).collect(Collectors.toList());
 		}
 
@@ -129,11 +119,8 @@ public class ReactiveElasticsearchRestClientAutoConfiguration {
 		}
 
 		private Credentials getCredentials() {
-			if (this.deprecatedProperties.isCustomized()) {
-				return Credentials.from(this.deprecatedProperties);
-			}
 			Credentials propertyCredentials = Credentials.from(this.properties);
-			Credentials uriCredentials = Credentials.from(this.properties.getUris());
+			Credentials uriCredentials = Credentials.from(this.uris);
 			if (uriCredentials == null) {
 				return propertyCredentials;
 			}
@@ -144,31 +131,25 @@ public class ReactiveElasticsearchRestClientAutoConfiguration {
 		}
 
 		private Duration getConnectionTimeout() {
-			return this.deprecatedProperties.isCustomized() ? this.deprecatedProperties.getConnectionTimeout()
-					: this.properties.getConnectionTimeout();
+			return this.properties.getConnectionTimeout();
 		}
 
 		private Duration getSocketTimeout() {
-			return this.deprecatedProperties.isCustomized() ? this.deprecatedProperties.getSocketTimeout()
-					: this.properties.getSocketTimeout();
+			return this.properties.getSocketTimeout();
 		}
 
 		private boolean isUseSsl() {
-			if (this.deprecatedProperties.isCustomized()) {
-				return this.deprecatedProperties.isUseSsl();
-			}
 			Set<String> schemes = this.uris.stream().map(URI::getScheme).collect(Collectors.toSet());
 			Assert.isTrue(schemes.size() == 1, "Configured Elasticsearch URIs have varying schemes");
 			return schemes.iterator().next().equals("https");
 		}
 
 		private DataSize getMaxInMemorySize() {
-			return this.deprecatedProperties.isCustomized() ? this.deprecatedProperties.getMaxInMemorySize()
-					: this.restClientProperties.getMaxInMemorySize();
+			return this.restClientProperties.getMaxInMemorySize();
 		}
 
 		private String getPathPrefix() {
-			return this.deprecatedProperties.isCustomized() ? null : this.properties.getPathPrefix();
+			return this.properties.getPathPrefix();
 		}
 
 		private static final class Credentials {
@@ -190,9 +171,8 @@ public class ReactiveElasticsearchRestClientAutoConfiguration {
 				return this.password;
 			}
 
-			private static Credentials from(List<String> uris) {
-				Set<String> userInfos = uris.stream().map(URI::create).map(URI::getUserInfo)
-						.collect(Collectors.toSet());
+			private static Credentials from(List<URI> uris) {
+				Set<String> userInfos = uris.stream().map(URI::getUserInfo).collect(Collectors.toSet());
 				Assert.isTrue(userInfos.size() == 1, "Configured Elasticsearch URIs have varying user infos");
 				String userInfo = userInfos.iterator().next();
 				if (userInfo == null) {
@@ -205,10 +185,6 @@ public class ReactiveElasticsearchRestClientAutoConfiguration {
 			}
 
 			private static Credentials from(ElasticsearchProperties properties) {
-				return getCredentials(properties.getUsername(), properties.getPassword());
-			}
-
-			private static Credentials from(DeprecatedReactiveElasticsearchRestClientProperties properties) {
 				return getCredentials(properties.getUsername(), properties.getPassword());
 			}
 

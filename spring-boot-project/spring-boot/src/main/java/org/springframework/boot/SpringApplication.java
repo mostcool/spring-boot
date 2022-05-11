@@ -16,7 +16,6 @@
 
 package org.springframework.boot;
 
-import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.CachedIntrospectionResults;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -61,6 +59,7 @@ import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.GenericTypeResolver;
+import org.springframework.core.NativeDetector;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.annotation.Order;
@@ -75,6 +74,7 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.core.io.support.SpringFactoriesLoader.ArgumentResolver;
 import org.springframework.core.metrics.ApplicationStartup;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -288,6 +288,7 @@ public class SpringApplication {
 	 * @return a running {@link ApplicationContext}
 	 */
 	public ConfigurableApplicationContext run(String... args) {
+		SpringApplicationHooks.hooks().preRun(this);
 		long startTime = System.nanoTime();
 		DefaultBootstrapContext bootstrapContext = createBootstrapContext();
 		ConfigurableApplicationContext context = null;
@@ -302,27 +303,32 @@ public class SpringApplication {
 			context = createApplicationContext();
 			context.setApplicationStartup(this.applicationStartup);
 			prepareContext(bootstrapContext, context, environment, listeners, applicationArguments, printedBanner);
-			refreshContext(context);
-			afterRefresh(context, applicationArguments);
-			Duration timeTakenToStartup = Duration.ofNanos(System.nanoTime() - startTime);
-			if (this.logStartupInfo) {
-				new StartupInfoLogger(this.mainApplicationClass).logStarted(getApplicationLog(), timeTakenToStartup);
+			if (refreshContext(context)) {
+				afterRefresh(context, applicationArguments);
+				Duration timeTakenToStartup = Duration.ofNanos(System.nanoTime() - startTime);
+				if (this.logStartupInfo) {
+					new StartupInfoLogger(this.mainApplicationClass).logStarted(getApplicationLog(),
+							timeTakenToStartup);
+				}
+				listeners.started(context, timeTakenToStartup);
+				callRunners(context, applicationArguments);
 			}
-			listeners.started(context, timeTakenToStartup);
-			callRunners(context, applicationArguments);
 		}
 		catch (Throwable ex) {
 			handleRunFailure(context, ex, listeners);
 			throw new IllegalStateException(ex);
 		}
 		try {
-			Duration timeTakenToReady = Duration.ofNanos(System.nanoTime() - startTime);
-			listeners.ready(context, timeTakenToReady);
+			if (context.isRunning()) {
+				Duration timeTakenToReady = Duration.ofNanos(System.nanoTime() - startTime);
+				listeners.ready(context, timeTakenToReady);
+			}
 		}
 		catch (Throwable ex) {
 			handleRunFailure(context, ex, null);
 			throw new IllegalStateException(ex);
 		}
+		SpringApplicationHooks.hooks().postRun(this, context);
 		return context;
 	}
 
@@ -367,6 +373,7 @@ public class SpringApplication {
 			ApplicationArguments applicationArguments, Banner printedBanner) {
 		context.setEnvironment(environment);
 		postProcessApplicationContext(context);
+		addAotGeneratedInitializerIfNecessary(this.initializers);
 		applyInitializers(context);
 		listeners.contextPrepared(context);
 		bootstrapContext.close(context);
@@ -390,18 +397,40 @@ public class SpringApplication {
 		if (this.lazyInitialization) {
 			context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor());
 		}
-		// Load the sources
-		Set<Object> sources = getAllSources();
-		Assert.notEmpty(sources, "Sources must not be empty");
-		load(context, sources.toArray(new Object[0]));
+		if (!NativeDetector.inNativeImage()) {
+			// Load the sources
+			Set<Object> sources = getAllSources();
+			Assert.notEmpty(sources, "Sources must not be empty");
+			load(context, sources.toArray(new Object[0]));
+		}
 		listeners.contextLoaded(context);
 	}
 
-	private void refreshContext(ConfigurableApplicationContext context) {
+	private void addAotGeneratedInitializerIfNecessary(List<ApplicationContextInitializer<?>> initializers) {
+		if (NativeDetector.inNativeImage()) {
+			try {
+				Class<?> initializerClass = Class.forName(
+						this.mainApplicationClass.getName() + "__ApplicationContextInitializer", true,
+						getClassLoader());
+				ApplicationContextInitializer<?> initializer = (ApplicationContextInitializer<?>) initializerClass
+						.getDeclaredConstructor().newInstance();
+				initializers.add(0, initializer);
+			}
+			catch (Exception ex) {
+				throw new IllegalArgumentException("Failed to load AOT-generated ApplicationContextInitializer", ex);
+			}
+		}
+	}
+
+	private boolean refreshContext(ConfigurableApplicationContext context) {
+		if (!SpringApplicationHooks.hooks().preRefresh(this, context)) {
+			return false;
+		}
 		if (this.registerShutdownHook) {
 			shutdownHook.registerApplicationContext(context);
 		}
 		refresh(context);
+		return true;
 	}
 
 	private void configureHeadlessProperty() {
@@ -410,42 +439,19 @@ public class SpringApplication {
 	}
 
 	private SpringApplicationRunListeners getRunListeners(String[] args) {
-		Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
-		return new SpringApplicationRunListeners(logger,
-				getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args),
-				this.applicationStartup);
+		ArgumentResolver argumentResolver = ArgumentResolver.of(SpringApplication.class, this);
+		argumentResolver = argumentResolver.and(String[].class, args);
+		Collection<SpringApplicationRunListener> listeners = getSpringFactoriesInstances(
+				SpringApplicationRunListener.class, argumentResolver);
+		return new SpringApplicationRunListeners(logger, listeners, this.applicationStartup);
 	}
 
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type) {
-		return getSpringFactoriesInstances(type, new Class<?>[] {});
+		return getSpringFactoriesInstances(type, null);
 	}
 
-	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes, Object... args) {
-		ClassLoader classLoader = getClassLoader();
-		// Use names and ensure unique to protect against duplicates
-		Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
-		List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
-		AnnotationAwareOrderComparator.sort(instances);
-		return instances;
-	}
-
-	@SuppressWarnings("unchecked")
-	private <T> List<T> createSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes,
-			ClassLoader classLoader, Object[] args, Set<String> names) {
-		List<T> instances = new ArrayList<>(names.size());
-		for (String name : names) {
-			try {
-				Class<?> instanceClass = ClassUtils.forName(name, classLoader);
-				Assert.isAssignable(type, instanceClass);
-				Constructor<?> constructor = instanceClass.getDeclaredConstructor(parameterTypes);
-				T instance = (T) BeanUtils.instantiateClass(constructor, args);
-				instances.add(instance);
-			}
-			catch (Throwable ex) {
-				throw new IllegalArgumentException("Cannot instantiate " + type + " : " + name, ex);
-			}
-		}
-		return instances;
+	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, ArgumentResolver argumentResolver) {
+		return SpringFactoriesLoader.forDefaultResourceLocation(getClassLoader()).load(type, argumentResolver);
 	}
 
 	private ConfigurableEnvironment getOrCreateEnvironment() {
@@ -796,8 +802,8 @@ public class SpringApplication {
 
 	private Collection<SpringBootExceptionReporter> getExceptionReporters(ConfigurableApplicationContext context) {
 		try {
-			return getSpringFactoriesInstances(SpringBootExceptionReporter.class,
-					new Class<?>[] { ConfigurableApplicationContext.class }, context);
+			ArgumentResolver argumentResolver = ArgumentResolver.of(ConfigurableApplicationContext.class, context);
+			return getSpringFactoriesInstances(SpringBootExceptionReporter.class, argumentResolver);
 		}
 		catch (Throwable ex) {
 			return Collections.emptyList();

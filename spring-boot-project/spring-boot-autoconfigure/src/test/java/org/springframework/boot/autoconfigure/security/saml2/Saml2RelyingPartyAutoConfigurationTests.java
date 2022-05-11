@@ -52,6 +52,7 @@ import static org.mockito.Mockito.mock;
  * Tests for {@link Saml2RelyingPartyAutoConfiguration}.
  *
  * @author Madhura Bhave
+ * @author Moritz Halbritter
  */
 class Saml2RelyingPartyAutoConfigurationTests {
 
@@ -120,12 +121,12 @@ class Saml2RelyingPartyAutoConfigurationTests {
 	}
 
 	@Test
-	void autoconfigurationShouldQueryIdentityProviderMetadataWhenMetadataUrlIsPresent() throws Exception {
+	void autoconfigurationShouldQueryAssertingPartyMetadataWhenMetadataUrlIsPresent() throws Exception {
 		try (MockWebServer server = new MockWebServer()) {
 			server.start();
 			String metadataUrl = server.url("").toString();
 			setupMockResponse(server, new ClassPathResource("saml/idp-metadata"));
-			this.contextRunner.withPropertyValues(PREFIX + ".foo.identityprovider.metadata-uri=" + metadataUrl)
+			this.contextRunner.withPropertyValues(PREFIX + ".foo.assertingparty.metadata-uri=" + metadataUrl)
 					.run((context) -> {
 						assertThat(context).hasSingleBean(RelyingPartyRegistrationRepository.class);
 						assertThat(server.getRequestCount()).isEqualTo(1);
@@ -139,7 +140,7 @@ class Saml2RelyingPartyAutoConfigurationTests {
 			server.start();
 			String metadataUrl = server.url("").toString();
 			setupMockResponse(server, new ClassPathResource("saml/idp-metadata"));
-			this.contextRunner.withPropertyValues(PREFIX + ".foo.identityprovider.metadata-uri=" + metadataUrl)
+			this.contextRunner.withPropertyValues(PREFIX + ".foo.assertingparty.metadata-uri=" + metadataUrl)
 					.run((context) -> {
 						RelyingPartyRegistrationRepository repository = context
 								.getBean(RelyingPartyRegistrationRepository.class);
@@ -156,8 +157,8 @@ class Saml2RelyingPartyAutoConfigurationTests {
 			server.start();
 			String metadataUrl = server.url("").toString();
 			setupMockResponse(server, new ClassPathResource("saml/idp-metadata"));
-			this.contextRunner.withPropertyValues(PREFIX + ".foo.identityprovider.metadata-uri=" + metadataUrl,
-					PREFIX + ".foo.identityprovider.singlesignon.binding=redirect").run((context) -> {
+			this.contextRunner.withPropertyValues(PREFIX + ".foo.assertingparty.metadata-uri=" + metadataUrl,
+					PREFIX + ".foo.assertingparty.singlesignon.binding=redirect").run((context) -> {
 						RelyingPartyRegistrationRepository repository = context
 								.getBean(RelyingPartyRegistrationRepository.class);
 						RelyingPartyRegistration registration = repository.findByRegistrationId("foo");
@@ -215,19 +216,19 @@ class Saml2RelyingPartyAutoConfigurationTests {
 
 	private String[] getPropertyValuesWithoutSigningCredentials(boolean signRequests) {
 		return new String[] { PREFIX
-				+ ".foo.identityprovider.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
-				PREFIX + ".foo.identityprovider.singlesignon.binding=post",
-				PREFIX + ".foo.identityprovider.singlesignon.sign-request=" + signRequests,
-				PREFIX + ".foo.identityprovider.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
-				PREFIX + ".foo.identityprovider.verification.credentials[0].certificate-location=classpath:saml/certificate-location" };
+				+ ".foo.assertingparty.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
+				PREFIX + ".foo.assertingparty.singlesignon.binding=post",
+				PREFIX + ".foo.assertingparty.singlesignon.sign-request=" + signRequests,
+				PREFIX + ".foo.assertingparty.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
+				PREFIX + ".foo.assertingparty.verification.credentials[0].certificate-location=classpath:saml/certificate-location" };
 	}
 
 	private String[] getPropertyValuesWithoutSsoBinding() {
 		return new String[] { PREFIX
-				+ ".foo.identityprovider.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
-				PREFIX + ".foo.identityprovider.singlesignon.sign-request=false",
-				PREFIX + ".foo.identityprovider.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
-				PREFIX + ".foo.identityprovider.verification.credentials[0].certificate-location=classpath:saml/certificate-location" };
+				+ ".foo.assertingparty.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
+				PREFIX + ".foo.assertingparty.singlesignon.sign-request=false",
+				PREFIX + ".foo.assertingparty.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
+				PREFIX + ".foo.assertingparty.verification.credentials[0].certificate-location=classpath:saml/certificate-location" };
 	}
 
 	private String[] getPropertyValues() {
@@ -236,11 +237,11 @@ class Saml2RelyingPartyAutoConfigurationTests {
 				PREFIX + ".foo.signing.credentials[0].certificate-location=classpath:saml/certificate-location",
 				PREFIX + ".foo.decryption.credentials[0].private-key-location=classpath:saml/private-key-location",
 				PREFIX + ".foo.decryption.credentials[0].certificate-location=classpath:saml/certificate-location",
-				PREFIX + ".foo.identityprovider.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
-				PREFIX + ".foo.identityprovider.singlesignon.binding=post",
-				PREFIX + ".foo.identityprovider.singlesignon.sign-request=false",
-				PREFIX + ".foo.identityprovider.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
-				PREFIX + ".foo.identityprovider.verification.credentials[0].certificate-location=classpath:saml/certificate-location",
+				PREFIX + ".foo.assertingparty.singlesignon.url=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/SSOService.php",
+				PREFIX + ".foo.assertingparty.singlesignon.binding=post",
+				PREFIX + ".foo.assertingparty.singlesignon.sign-request=false",
+				PREFIX + ".foo.assertingparty.entity-id=https://simplesaml-for-spring-saml.cfapps.io/saml2/idp/metadata.php",
+				PREFIX + ".foo.assertingparty.verification.credentials[0].certificate-location=classpath:saml/certificate-location",
 				PREFIX + ".foo.entity-id={baseUrl}/saml2/foo-entity-id",
 				PREFIX + ".foo.acs.location={baseUrl}/login/saml2/foo-entity-id",
 				PREFIX + ".foo.acs.binding=redirect" };

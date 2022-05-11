@@ -26,7 +26,6 @@ dependencies {
 	optional("com.oracle.database.jdbc:ucp")
 	optional("com.samskivert:jmustache")
 	optional("com.sun.mail:jakarta.mail")
-	optional("de.flapdoodle.embed:de.flapdoodle.embed.mongo")
 	optional("io.lettuce:lettuce-core")
 	optional("io.projectreactor.netty:reactor-netty-http")
 	optional("io.r2dbc:r2dbc-spi")
@@ -117,6 +116,9 @@ dependencies {
 	}
 	optional("org.liquibase:liquibase-core") {
 		exclude group: "javax.xml.bind", module: "jaxb-api"
+	}
+	optional("org.messaginghub:pooled-jms") {
+		exclude group: "org.apache.geronimo.specs", module: "geronimo-jms_2.0_spec"
 	}
 	optional("org.mongodb:mongodb-driver-reactivestreams")
 	optional("org.mongodb:mongodb-driver-sync")

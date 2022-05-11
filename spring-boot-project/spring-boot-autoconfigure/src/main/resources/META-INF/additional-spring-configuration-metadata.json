@@ -1673,7 +1673,7 @@
       "description": "Check the change log location exists.",
       "defaultValue": true,
       "deprecation": {
-        "reason": "Liquibase has it's own check that checks if the change log location exists making this property redundant.",
+        "reason": "Liquibase has its own check that checks if the change log location exists making this property redundant.",
         "level": "error"
       }
     },
@@ -1683,13 +1683,6 @@
       "sourceType": "org.springframework.boot.autoconfigure.mail.MailProperties",
       "type": "java.lang.Boolean",
       "defaultValue": false
-    },
-    {
-      "name": "spring.mongodb.embedded.features",
-      "deprecation": {
-        "level": "error",
-        "reason": "Feature support has been removed from Embedded Mongo. A custom MongodConfig bean should be defined instead."
-      }
     },
     {
       "name": "spring.mustache.prefix",

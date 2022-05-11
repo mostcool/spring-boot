@@ -18,7 +18,8 @@ package org.springframework.boot.actuate.autoconfigure.observation;
 
 import java.util.List;
 
-import io.micrometer.observation.Observation.GlobalTagsProvider;
+import io.micrometer.observation.Observation.Context;
+import io.micrometer.observation.Observation.GlobalKeyValuesProvider;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationPredicate;
 import io.micrometer.observation.ObservationRegistry;
@@ -29,8 +30,8 @@ import org.springframework.boot.util.LambdaSafe;
 /**
  * Configurer to apply {@link ObservationRegistryCustomizer customizers} to
  * {@link ObservationRegistry observation registries}. Installs
- * {@link ObservationPredicate observation predicates} and {@link GlobalTagsProvider
- * global tag providers} into the {@link ObservationRegistry}. Also uses a
+ * {@link ObservationPredicate observation predicates} and {@link GlobalKeyValuesProvider
+ * global key values providers} into the {@link ObservationRegistry}. Also uses a
  * {@link ObservationHandlerGrouping} to group handlers, which are then added to the
  * {@link ObservationRegistry}.
  *
@@ -42,27 +43,27 @@ class ObservationRegistryConfigurer {
 
 	private final ObjectProvider<ObservationPredicate> observationPredicates;
 
-	private final ObjectProvider<GlobalTagsProvider<?>> tagProviders;
+	private final ObjectProvider<GlobalKeyValuesProvider<?>> keyValuesProviders;
 
-	private final ObjectProvider<ObservationHandler<?>> observationHandlers;
+	private final ObjectProvider<ObservationHandler<Context>> observationHandlers;
 
 	private final ObjectProvider<ObservationHandlerGrouping> observationHandlerGrouping;
 
 	ObservationRegistryConfigurer(ObjectProvider<ObservationRegistryCustomizer<?>> customizers,
 			ObjectProvider<ObservationPredicate> observationPredicates,
-			ObjectProvider<GlobalTagsProvider<?>> tagProviders,
-			ObjectProvider<ObservationHandler<?>> observationHandlers,
+			ObjectProvider<GlobalKeyValuesProvider<?>> keyValuesProviders,
+			ObjectProvider<ObservationHandler<Context>> observationHandlers,
 			ObjectProvider<ObservationHandlerGrouping> observationHandlerGrouping) {
 		this.customizers = customizers;
 		this.observationPredicates = observationPredicates;
-		this.tagProviders = tagProviders;
+		this.keyValuesProviders = keyValuesProviders;
 		this.observationHandlers = observationHandlers;
 		this.observationHandlerGrouping = observationHandlerGrouping;
 	}
 
 	void configure(ObservationRegistry registry) {
 		registerObservationPredicates(registry);
-		registerGlobalTagsProvider(registry);
+		registerGlobalKeyValuesProviders(registry);
 		registerHandlers(registry);
 		customize(registry);
 	}
@@ -77,9 +78,9 @@ class ObservationRegistryConfigurer {
 				(observationPredicate) -> registry.observationConfig().observationPredicate(observationPredicate));
 	}
 
-	private void registerGlobalTagsProvider(ObservationRegistry registry) {
-		this.tagProviders.orderedStream()
-				.forEach((tagProvider) -> registry.observationConfig().tagsProvider(tagProvider));
+	private void registerGlobalKeyValuesProviders(ObservationRegistry registry) {
+		this.keyValuesProviders.orderedStream()
+				.forEach((keyValuesProvider) -> registry.observationConfig().keyValuesProvider(keyValuesProvider));
 	}
 
 	@SuppressWarnings("unchecked")

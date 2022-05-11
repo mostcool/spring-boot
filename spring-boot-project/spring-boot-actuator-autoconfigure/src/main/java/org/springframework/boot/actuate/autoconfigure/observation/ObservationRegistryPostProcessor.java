@@ -16,7 +16,8 @@
 
 package org.springframework.boot.actuate.autoconfigure.observation;
 
-import io.micrometer.observation.Observation.GlobalTagsProvider;
+import io.micrometer.observation.Observation.Context;
+import io.micrometer.observation.Observation.GlobalKeyValuesProvider;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationPredicate;
 import io.micrometer.observation.ObservationRegistry;
@@ -38,9 +39,9 @@ class ObservationRegistryPostProcessor implements BeanPostProcessor {
 
 	private final ObjectProvider<ObservationPredicate> observationPredicates;
 
-	private final ObjectProvider<GlobalTagsProvider<?>> tagProviders;
+	private final ObjectProvider<GlobalKeyValuesProvider<?>> keyValuesProviders;
 
-	private final ObjectProvider<ObservationHandler<?>> observationHandlers;
+	private final ObjectProvider<ObservationHandler<Context>> observationHandlers;
 
 	private final ObjectProvider<ObservationHandlerGrouping> observationHandlerGrouping;
 
@@ -48,12 +49,12 @@ class ObservationRegistryPostProcessor implements BeanPostProcessor {
 
 	ObservationRegistryPostProcessor(ObjectProvider<ObservationRegistryCustomizer<?>> observationRegistryCustomizers,
 			ObjectProvider<ObservationPredicate> observationPredicates,
-			ObjectProvider<GlobalTagsProvider<?>> tagProviders,
-			ObjectProvider<ObservationHandler<?>> observationHandlers,
+			ObjectProvider<GlobalKeyValuesProvider<?>> keyValuesProviders,
+			ObjectProvider<ObservationHandler<Context>> observationHandlers,
 			ObjectProvider<ObservationHandlerGrouping> observationHandlerGrouping) {
 		this.observationRegistryCustomizers = observationRegistryCustomizers;
 		this.observationPredicates = observationPredicates;
-		this.tagProviders = tagProviders;
+		this.keyValuesProviders = keyValuesProviders;
 		this.observationHandlers = observationHandlers;
 		this.observationHandlerGrouping = observationHandlerGrouping;
 	}
@@ -69,7 +70,7 @@ class ObservationRegistryPostProcessor implements BeanPostProcessor {
 	private ObservationRegistryConfigurer getConfigurer() {
 		if (this.configurer == null) {
 			this.configurer = new ObservationRegistryConfigurer(this.observationRegistryCustomizers,
-					this.observationPredicates, this.tagProviders, this.observationHandlers,
+					this.observationPredicates, this.keyValuesProviders, this.observationHandlers,
 					this.observationHandlerGrouping);
 		}
 		return this.configurer;

@@ -549,7 +549,7 @@ If that is not what you want, you can disable transaction management for a test 
 [[features.testing.spring-boot-applications.autoconfigured-spring-data-mongodb]]
 ==== Auto-configured Data MongoDB Tests
 You can use `@DataMongoTest` to test MongoDB applications.
-By default, it configures an in-memory embedded MongoDB (if available), configures a `MongoTemplate`, scans for `@Document` classes, and configures Spring Data MongoDB repositories.
+By default, it configures a `MongoTemplate`, scans for `@Document` classes, and configures Spring Data MongoDB repositories.
 Regular `@Component` and `@ConfigurationProperties` beans are not scanned when the `@DataMongoTest` annotation is used.
 `@EnableConfigurationProperties` can be used to include `@ConfigurationProperties` beans.
 (For more about using MongoDB with Spring Boot, see "<<data#data.nosql.mongodb>>", earlier in this chapter.)
@@ -558,12 +558,7 @@ TIP: A list of the auto-configuration settings that are enabled by `@DataMongoTe
 
 The following class shows the `@DataMongoTest` annotation in use:
 
-include::code:withoutdb/MyDataMongoDbTests[]
-
-In-memory embedded MongoDB generally works well for tests, since it is fast and does not require any developer installation.
-If, however, you prefer to run tests against a real MongoDB server, you should exclude the embedded MongoDB auto-configuration, as shown in the following example:
-
-include::code:withdb/MyDataMongoDbTests[]
+include::code:MyDataMongoDbTests[]
 
 
 

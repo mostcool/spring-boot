@@ -19,14 +19,14 @@ package org.springframework.boot.actuate.autoconfigure.observation;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.micrometer.common.Tag;
-import io.micrometer.common.Tags;
+import io.micrometer.common.KeyValue;
+import io.micrometer.common.KeyValues;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.observation.MeterObservationHandler;
 import io.micrometer.core.instrument.search.MeterNotFoundException;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.Observation.Context;
-import io.micrometer.observation.Observation.GlobalTagsProvider;
+import io.micrometer.observation.Observation.GlobalKeyValuesProvider;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationHandler.AllMatchingCompositeObservationHandler;
 import io.micrometer.observation.ObservationHandler.FirstMatchingCompositeObservationHandler;
@@ -99,12 +99,12 @@ class ObservationAutoConfigurationTests {
 	}
 
 	@Test
-	void autoConfiguresGlobalTagsProvider() {
-		this.contextRunner.withUserConfiguration(GlobalTagsProviders.class).run((context) -> {
+	void autoConfiguresGlobalKeyValuesProvider() {
+		this.contextRunner.withUserConfiguration(GlobalKeyValuesProviders.class).run((context) -> {
 			ObservationRegistry observationRegistry = context.getBean(ObservationRegistry.class);
 			Context micrometerContext = new Context();
 			Observation.start("test-observation", micrometerContext, observationRegistry).stop();
-			assertThat(micrometerContext.getAllTags()).containsExactly(Tag.of("tag1", "value1"));
+			assertThat(micrometerContext.getAllKeyValues()).containsExactly(KeyValue.of("key1", "value1"));
 		});
 	}
 
@@ -161,19 +161,19 @@ class ObservationAutoConfigurationTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	static class GlobalTagsProviders {
+	static class GlobalKeyValuesProviders {
 
 		@Bean
-		GlobalTagsProvider<?> customTagsProvider() {
-			return new GlobalTagsProvider<>() {
+		Observation.GlobalKeyValuesProvider<?> customKeyValuesProvider() {
+			return new GlobalKeyValuesProvider<>() {
 				@Override
 				public boolean supportsContext(Context context) {
 					return true;
 				}
 
 				@Override
-				public Tags getLowCardinalityTags(Context context) {
-					return Tags.of("tag1", "value1");
+				public KeyValues getLowCardinalityKeyValues(Context context) {
+					return KeyValues.of("key1", "value1");
 				}
 			};
 		}

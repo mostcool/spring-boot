@@ -20,13 +20,11 @@ import java.util.List;
 
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
-import io.micrometer.tracing.handler.HttpClientTracingObservationHandler;
-import io.micrometer.tracing.handler.HttpServerTracingObservationHandler;
+import io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler;
+import io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler;
 import io.micrometer.tracing.handler.TracingObservationHandler;
-import io.micrometer.tracing.http.HttpClientHandler;
-import io.micrometer.tracing.http.HttpServerHandler;
+import io.micrometer.tracing.propagation.Propagator;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -35,6 +33,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link MicrometerTracingAutoConfiguration}.
@@ -48,26 +47,26 @@ class MicrometerTracingAutoConfigurationTests {
 
 	@Test
 	void shouldSupplyBeans() {
-		this.contextRunner.withUserConfiguration(TracerConfiguration.class, HttpClientHandlerConfiguration.class,
-				HttpServerHandlerConfiguration.class).run((context) -> {
+		this.contextRunner.withUserConfiguration(TracerConfiguration.class, PropagatorConfiguration.class)
+				.run((context) -> {
 					assertThat(context).hasSingleBean(DefaultTracingObservationHandler.class);
-					assertThat(context).hasSingleBean(HttpServerTracingObservationHandler.class);
-					assertThat(context).hasSingleBean(HttpClientTracingObservationHandler.class);
+					assertThat(context).hasSingleBean(PropagatingReceiverTracingObservationHandler.class);
+					assertThat(context).hasSingleBean(PropagatingSenderTracingObservationHandler.class);
 				});
 	}
 
 	@Test
 	@SuppressWarnings("rawtypes")
 	void shouldSupplyBeansInCorrectOrder() {
-		this.contextRunner.withUserConfiguration(TracerConfiguration.class, HttpClientHandlerConfiguration.class,
-				HttpServerHandlerConfiguration.class).run((context) -> {
+		this.contextRunner.withUserConfiguration(TracerConfiguration.class, PropagatorConfiguration.class)
+				.run((context) -> {
 					List<TracingObservationHandler> tracingObservationHandlers = context
 							.getBeanProvider(TracingObservationHandler.class).orderedStream().toList();
 					assertThat(tracingObservationHandlers).hasSize(3);
 					assertThat(tracingObservationHandlers.get(0))
-							.isInstanceOf(HttpServerTracingObservationHandler.class);
+							.isInstanceOf(PropagatingReceiverTracingObservationHandler.class);
 					assertThat(tracingObservationHandlers.get(1))
-							.isInstanceOf(HttpClientTracingObservationHandler.class);
+							.isInstanceOf(PropagatingSenderTracingObservationHandler.class);
 					assertThat(tracingObservationHandlers.get(2)).isInstanceOf(DefaultTracingObservationHandler.class);
 				});
 	}
@@ -77,10 +76,10 @@ class MicrometerTracingAutoConfigurationTests {
 		this.contextRunner.withUserConfiguration(CustomConfiguration.class).run((context) -> {
 			assertThat(context).hasBean("customDefaultTracingObservationHandler");
 			assertThat(context).hasSingleBean(DefaultTracingObservationHandler.class);
-			assertThat(context).hasBean("customHttpServerTracingObservationHandler");
-			assertThat(context).hasSingleBean(HttpServerTracingObservationHandler.class);
-			assertThat(context).hasBean("customHttpClientTracingObservationHandler");
-			assertThat(context).hasSingleBean(HttpClientTracingObservationHandler.class);
+			assertThat(context).hasBean("customPropagatingReceiverTracingObservationHandler");
+			assertThat(context).hasSingleBean(PropagatingReceiverTracingObservationHandler.class);
+			assertThat(context).hasBean("customPropagatingSenderTracingObservationHandler");
+			assertThat(context).hasSingleBean(PropagatingSenderTracingObservationHandler.class);
 		});
 	}
 
@@ -88,32 +87,36 @@ class MicrometerTracingAutoConfigurationTests {
 	void shouldNotSupplyBeansIfMicrometerIsMissing() {
 		this.contextRunner.withClassLoader(new FilteredClassLoader("io.micrometer")).run((context) -> {
 			assertThat(context).doesNotHaveBean(DefaultTracingObservationHandler.class);
-			assertThat(context).doesNotHaveBean(HttpServerTracingObservationHandler.class);
-			assertThat(context).doesNotHaveBean(HttpClientTracingObservationHandler.class);
+			assertThat(context).doesNotHaveBean(PropagatingReceiverTracingObservationHandler.class);
+			assertThat(context).doesNotHaveBean(PropagatingSenderTracingObservationHandler.class);
 		});
 	}
 
 	@Test
 	void shouldNotSupplyBeansIfTracerIsMissing() {
-		this.contextRunner
-				.withUserConfiguration(HttpServerHandlerConfiguration.class, HttpClientHandlerConfiguration.class)
-				.run((context) -> {
+		this.contextRunner.withUserConfiguration(PropagatorConfiguration.class).run((context) -> {
+			assertThat(context).doesNotHaveBean(DefaultTracingObservationHandler.class);
+			assertThat(context).doesNotHaveBean(PropagatingReceiverTracingObservationHandler.class);
+			assertThat(context).doesNotHaveBean(PropagatingSenderTracingObservationHandler.class);
+		});
+	}
+
+	@Test
+	void shouldNotSupplyBeansIfPropagatorIsMissing() {
+		this.contextRunner.withUserConfiguration(TracerConfiguration.class).run((context) -> {
+			assertThat(context).doesNotHaveBean(PropagatingSenderTracingObservationHandler.class);
+			assertThat(context).doesNotHaveBean(PropagatingReceiverTracingObservationHandler.class);
+		});
+	}
+
+	@Test
+	void shouldNotSupplyBeansIfTracingIsDisabled() {
+		this.contextRunner.withUserConfiguration(TracerConfiguration.class, PropagatorConfiguration.class)
+				.withPropertyValues("management.tracing.enabled=false").run((context) -> {
 					assertThat(context).doesNotHaveBean(DefaultTracingObservationHandler.class);
-					assertThat(context).doesNotHaveBean(HttpServerTracingObservationHandler.class);
-					assertThat(context).doesNotHaveBean(HttpClientTracingObservationHandler.class);
+					assertThat(context).doesNotHaveBean(PropagatingReceiverTracingObservationHandler.class);
+					assertThat(context).doesNotHaveBean(PropagatingSenderTracingObservationHandler.class);
 				});
-	}
-
-	@Test
-	void shouldNotSupplyBeansIfHttpClientHandlerIsMissing() {
-		this.contextRunner.withUserConfiguration(TracerConfiguration.class, HttpServerHandlerConfiguration.class)
-				.run((context) -> assertThat(context).doesNotHaveBean(HttpClientTracingObservationHandler.class));
-	}
-
-	@Test
-	void shouldNotSupplyBeansIfHttpServerHandlerIsMissing() {
-		this.contextRunner.withUserConfiguration(TracerConfiguration.class, HttpClientHandlerConfiguration.class)
-				.run((context) -> assertThat(context).doesNotHaveBean(HttpServerTracingObservationHandler.class));
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -121,27 +124,17 @@ class MicrometerTracingAutoConfigurationTests {
 
 		@Bean
 		Tracer tracer() {
-			return Mockito.mock(Tracer.class);
+			return mock(Tracer.class);
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	private static class HttpClientHandlerConfiguration {
+	private static class PropagatorConfiguration {
 
 		@Bean
-		HttpClientHandler httpClientHandler() {
-			return Mockito.mock(HttpClientHandler.class);
-		}
-
-	}
-
-	@Configuration(proxyBeanMethods = false)
-	private static class HttpServerHandlerConfiguration {
-
-		@Bean
-		HttpServerHandler httpServerHandler() {
-			return Mockito.mock(HttpServerHandler.class);
+		Propagator propagator() {
+			return mock(Propagator.class);
 		}
 
 	}
@@ -151,17 +144,17 @@ class MicrometerTracingAutoConfigurationTests {
 
 		@Bean
 		DefaultTracingObservationHandler customDefaultTracingObservationHandler() {
-			return Mockito.mock(DefaultTracingObservationHandler.class);
+			return mock(DefaultTracingObservationHandler.class);
 		}
 
 		@Bean
-		HttpServerTracingObservationHandler customHttpServerTracingObservationHandler() {
-			return Mockito.mock(HttpServerTracingObservationHandler.class);
+		PropagatingReceiverTracingObservationHandler<?> customPropagatingReceiverTracingObservationHandler() {
+			return mock(PropagatingReceiverTracingObservationHandler.class);
 		}
 
 		@Bean
-		HttpClientTracingObservationHandler customHttpClientTracingObservationHandler() {
-			return Mockito.mock(HttpClientTracingObservationHandler.class);
+		PropagatingSenderTracingObservationHandler<?> customPropagatingSenderTracingObservationHandler() {
+			return mock(PropagatingSenderTracingObservationHandler.class);
 		}
 
 	}

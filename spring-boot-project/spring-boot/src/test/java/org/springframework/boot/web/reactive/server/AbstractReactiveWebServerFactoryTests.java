@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.boot.web.reactive.server;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -27,10 +26,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -288,7 +285,6 @@ public abstract class AbstractReactiveWebServerFactoryTests {
 		ssl.setCertificate("classpath:test-cert.pem");
 		ssl.setCertificatePrivateKey("classpath:test-key.pem");
 		ssl.setTrustCertificate("classpath:test-cert.pem");
-		ssl.setKeyStorePassword("secret");
 		testClientAuthSuccess(ssl, buildTrustAllSslWithClientKeyConnector("test.p12", "secret"));
 	}
 
@@ -468,7 +464,7 @@ public abstract class AbstractReactiveWebServerFactoryTests {
 	}
 
 	@Test
-	void whenARequestIsActiveThenStopWillComplete() throws InterruptedException, BrokenBarrierException {
+	void whenARequestIsActiveThenStopWillComplete() throws InterruptedException {
 		AbstractReactiveWebServerFactory factory = getFactory();
 		BlockingHandler blockingHandler = new BlockingHandler();
 		this.webServer = factory.getWebServer(blockingHandler);
@@ -514,8 +510,7 @@ public abstract class AbstractReactiveWebServerFactoryTests {
 	}
 
 	@Test
-	protected void whenHttp2IsEnabledAndSslIsDisabledThenHttp11CanStillBeUsed()
-			throws InterruptedException, ExecutionException, IOException {
+	protected void whenHttp2IsEnabledAndSslIsDisabledThenHttp11CanStillBeUsed() {
 		AbstractReactiveWebServerFactory factory = getFactory();
 		Http2 http2 = new Http2();
 		http2.setEnabled(true);
@@ -583,15 +578,12 @@ public abstract class AbstractReactiveWebServerFactoryTests {
 
 	protected final void doWithBlockedPort(BlockedPortAction action) throws Exception {
 		ServerSocket serverSocket = new ServerSocket();
-		int blockedPort = doWithRetry(() -> {
-			serverSocket.bind(null);
-			return serverSocket.getLocalPort();
-		});
-		try {
+		try (serverSocket) {
+			int blockedPort = doWithRetry(() -> {
+				serverSocket.bind(null);
+				return serverSocket.getLocalPort();
+			});
 			action.run(blockedPort);
-		}
-		finally {
-			serverSocket.close();
 		}
 	}
 
@@ -661,8 +653,7 @@ public abstract class AbstractReactiveWebServerFactoryTests {
 
 		@Override
 		public void channelRead(ChannelHandlerContext ctx, Object msg) {
-			if (msg instanceof HttpResponse) {
-				HttpResponse response = (HttpResponse) msg;
+			if (msg instanceof HttpResponse response) {
 				boolean compressed = response.headers().contains(HttpHeaderNames.CONTENT_ENCODING, "gzip", true);
 				if (compressed) {
 					response.headers().set("X-Test-Compressed", "true");

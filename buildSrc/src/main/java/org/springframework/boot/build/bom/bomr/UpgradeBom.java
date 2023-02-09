@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 
@@ -42,6 +44,7 @@ import org.gradle.api.tasks.TaskExecutionException;
 import org.gradle.api.tasks.options.Option;
 
 import org.springframework.boot.build.bom.BomExtension;
+import org.springframework.boot.build.bom.Library;
 import org.springframework.boot.build.bom.bomr.github.GitHub;
 import org.springframework.boot.build.bom.bomr.github.GitHubRepository;
 import org.springframework.boot.build.bom.bomr.github.Issue;
@@ -52,19 +55,23 @@ import org.springframework.util.StringUtils;
  * {@link Task} to upgrade the libraries managed by a bom.
  *
  * @author Andy Wilkinson
+ * @author Moritz Halbritter
  */
 public class UpgradeBom extends DefaultTask {
 
-	private Set<String> repositoryUrls;
+	private final Set<String> repositoryUrls = new LinkedHashSet<>();
 
 	private final BomExtension bom;
 
 	private String milestone;
 
+	private String libraries;
+
+	private int threads = 2;
+
 	@Inject
 	public UpgradeBom(BomExtension bom) {
 		this.bom = bom;
-		this.repositoryUrls = new LinkedHashSet<>();
 		getProject().getRepositories().withType(MavenArtifactRepository.class, (repository) -> {
 			String repositoryUrl = repository.getUrl().toString();
 			if (!repositoryUrl.endsWith("snapshot")) {
@@ -78,9 +85,25 @@ public class UpgradeBom extends DefaultTask {
 		this.milestone = milestone;
 	}
 
+	@Option(option = "threads", description = "Number of Threads to use for update resolution")
+	public void setThreads(String threads) {
+		this.threads = Integer.parseInt(threads);
+	}
+
 	@Input
 	public String getMilestone() {
 		return this.milestone;
+	}
+
+	@Option(option = "libraries", description = "Regular expression that identifies the libraries to upgrade")
+	public void setLibraries(String libraries) {
+		this.libraries = libraries;
+	}
+
+	@Input
+	@org.gradle.api.tasks.Optional
+	public String getLibraries() {
+		return this.libraries;
 	}
 
 	@TaskAction
@@ -88,7 +111,7 @@ public class UpgradeBom extends DefaultTask {
 	void upgradeDependencies() {
 		GitHubRepository repository = createGitHub().getRepository(this.bom.getUpgrade().getGitHub().getOrganization(),
 				this.bom.getUpgrade().getGitHub().getRepository());
-		List<String> availableLabels = repository.getLabels();
+		Set<String> availableLabels = repository.getLabels();
 		List<String> issueLabels = this.bom.getUpgrade().getGitHub().getIssueLabels();
 		if (!availableLabels.containsAll(issueLabels)) {
 			List<String> unknownLabels = new ArrayList<>(issueLabels);
@@ -98,9 +121,10 @@ public class UpgradeBom extends DefaultTask {
 		}
 		Milestone milestone = determineMilestone(repository);
 		List<Issue> existingUpgradeIssues = repository.findIssues(issueLabels, milestone);
-		List<Upgrade> upgrades = new InteractiveUpgradeResolver(new MavenMetadataVersionResolver(this.repositoryUrls),
-				this.bom.getUpgrade().getPolicy(), getServices().get(UserInputHandler.class))
-						.resolveUpgrades(this.bom.getLibraries());
+		List<Upgrade> upgrades = new InteractiveUpgradeResolver(getServices().get(UserInputHandler.class),
+				new MultithreadedLibraryUpdateResolver(new MavenMetadataVersionResolver(this.repositoryUrls),
+						this.bom.getUpgrade().getPolicy(), this.threads))
+								.resolveUpgrades(matchingLibraries(this.libraries), this.bom.getLibraries());
 		Path buildFile = getProject().getBuildFile().toPath();
 		Path gradleProperties = new File(getProject().getRootProject().getProjectDir(), "gradle.properties").toPath();
 		UpgradeApplicator upgradeApplicator = new UpgradeApplicator(buildFile, gradleProperties);
@@ -138,6 +162,19 @@ public class UpgradeBom extends DefaultTask {
 				Thread.currentThread().interrupt();
 			}
 		}
+	}
+
+	private List<Library> matchingLibraries(String pattern) {
+		if (pattern == null) {
+			return this.bom.getLibraries();
+		}
+		Predicate<String> libraryPredicate = Pattern.compile(pattern).asPredicate();
+		List<Library> matchingLibraries = this.bom.getLibraries().stream()
+				.filter((library) -> libraryPredicate.test(library.getName())).toList();
+		if (matchingLibraries.isEmpty()) {
+			throw new InvalidUserDataException("No libraries matched '" + pattern + "'");
+		}
+		return matchingLibraries;
 	}
 
 	private Issue findExistingUpgradeIssue(List<Issue> existingUpgradeIssues, Upgrade upgrade) {

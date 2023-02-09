@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,8 +79,8 @@ public class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
 	}
 
 	private void processDependency(Dependency dependency) {
-		if (dependency instanceof ModuleDependency) {
-			processDependency((ModuleDependency) dependency);
+		if (dependency instanceof ModuleDependency moduleDependency) {
+			processDependency(moduleDependency);
 		}
 	}
 
@@ -106,8 +106,7 @@ public class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
 			if (!exclusions.isEmpty()) {
 				Dependency toCheck = this.dependencyById.get(dependencyId);
 				List<String> dependencies = this.configurations.detachedConfiguration(toCheck, this.platform)
-						.getIncoming().getArtifacts().getArtifacts().stream().map(this::getId)
-						.collect(Collectors.toList());
+						.getIncoming().getArtifacts().getArtifacts().stream().map(this::getId).toList();
 				exclusions.removeAll(dependencies);
 				removeProfileExclusions(dependencyId, exclusions);
 				if (!exclusions.isEmpty()) {

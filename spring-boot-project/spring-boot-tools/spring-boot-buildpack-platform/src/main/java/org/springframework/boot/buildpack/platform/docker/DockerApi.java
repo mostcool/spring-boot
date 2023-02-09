@@ -26,7 +26,7 @@ import java.util.List;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerHost;
 import org.springframework.boot.buildpack.platform.docker.transport.HttpTransport;
@@ -449,11 +449,6 @@ public class DockerApi {
 				Assert.state(this.digest == null || this.digest.equals(digest), "Different digests IDs provided");
 				this.digest = digest;
 			}
-		}
-
-		String getCapturedDigest() {
-			Assert.hasText(this.digest, "No digest found");
-			return this.digest;
 		}
 
 	}

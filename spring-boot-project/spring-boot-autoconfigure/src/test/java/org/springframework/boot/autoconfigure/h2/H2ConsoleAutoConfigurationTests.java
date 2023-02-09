@@ -16,6 +16,8 @@
 
 package org.springframework.boot.autoconfigure.h2;
 
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.context.properties.ConfigurationPropertiesBindException;
+import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -75,7 +79,9 @@ class H2ConsoleAutoConfigurationTests {
 		this.contextRunner.withPropertyValues("spring.h2.console.enabled=true", "spring.h2.console.path=custom")
 				.run((context) -> {
 					assertThat(context).hasFailed();
-					assertThat(context.getStartupFailure()).isInstanceOf(BeanCreationException.class)
+					assertThat(context.getStartupFailure()).isInstanceOf(BeanCreationException.class).cause()
+							.isInstanceOf(ConfigurationPropertiesBindException.class).cause()
+							.isInstanceOf(BindException.class)
 							.hasMessageContaining("Failed to bind properties under 'spring.h2.console'");
 				});
 	}
@@ -137,7 +143,8 @@ class H2ConsoleAutoConfigurationTests {
 	@Test
 	@ExtendWith(OutputCaptureExtension.class)
 	void allDataSourceUrlsAreLoggedWhenMultipleAvailable(CapturedOutput output) {
-		this.contextRunner
+		ClassLoader webAppClassLoader = new URLClassLoader(new URL[0]);
+		this.contextRunner.withClassLoader(webAppClassLoader)
 				.withUserConfiguration(FailingDataSourceConfiguration.class, MultiDataSourceConfiguration.class)
 				.withPropertyValues("spring.h2.console.enabled=true").run((context) -> assertThat(output).contains(
 						"H2 console available at '/h2-console'. Databases available at 'someJdbcUrl', 'anotherJdbcUrl'"));
@@ -179,9 +186,15 @@ class H2ConsoleAutoConfigurationTests {
 
 		private DataSource mockDataSource(String url) throws SQLException {
 			DataSource dataSource = mock(DataSource.class);
-			given(dataSource.getConnection()).willReturn(mock(Connection.class));
-			given(dataSource.getConnection().getMetaData()).willReturn(mock(DatabaseMetaData.class));
-			given(dataSource.getConnection().getMetaData().getURL()).willReturn(url);
+			given(dataSource.getConnection()).will((invocation) -> {
+				assertThat(Thread.currentThread().getContextClassLoader()).isEqualTo(getClass().getClassLoader());
+				Connection connection = mock(Connection.class);
+				DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+				given(connection.getMetaData()).willReturn(metadata);
+				given(metadata.getURL()).willReturn(url);
+				return connection;
+			});
+
 			return dataSource;
 		}
 

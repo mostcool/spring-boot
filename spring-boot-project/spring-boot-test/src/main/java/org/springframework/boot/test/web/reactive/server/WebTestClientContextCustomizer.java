@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.boot.test.web.reactive.server;
 
 import java.util.Collection;
 
+import org.springframework.aot.AotDetector;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -58,6 +59,9 @@ class WebTestClientContextCustomizer implements ContextCustomizer {
 
 	@Override
 	public void customizeContext(ConfigurableApplicationContext context, MergedContextConfiguration mergedConfig) {
+		if (AotDetector.useGeneratedArtifacts()) {
+			return;
+		}
 		SpringBootTest springBootTest = TestContextAnnotationUtils.findMergedAnnotation(mergedConfig.getTestClass(),
 				SpringBootTest.class);
 		if (springBootTest.webEnvironment().isEmbedded()) {
@@ -67,8 +71,8 @@ class WebTestClientContextCustomizer implements ContextCustomizer {
 
 	private void registerWebTestClient(ConfigurableApplicationContext context) {
 		ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
-		if (beanFactory instanceof BeanDefinitionRegistry) {
-			registerWebTestClient((BeanDefinitionRegistry) beanFactory);
+		if (beanFactory instanceof BeanDefinitionRegistry registry) {
+			registerWebTestClient(registry);
 		}
 	}
 
@@ -109,6 +113,9 @@ class WebTestClientContextCustomizer implements ContextCustomizer {
 
 		@Override
 		public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
+			if (AotDetector.useGeneratedArtifacts()) {
+				return;
+			}
 			if (BeanFactoryUtils.beanNamesForTypeIncludingAncestors((ListableBeanFactory) this.beanFactory,
 					WebTestClient.class, false, false).length == 0) {
 				registry.registerBeanDefinition(WebTestClient.class.getName(),

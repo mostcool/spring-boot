@@ -25,6 +25,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.plugins.WarPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -90,8 +91,10 @@ class WarPluginAction implements PluginApplicationAction {
 					bootWar.getMainClass()
 							.convention(resolveMainClassName.flatMap((resolver) -> manifestStartClass.isPresent()
 									? manifestStartClass : resolveMainClassName.get().readMainClassName()));
+					bootWar.getTargetJavaVersion()
+							.set(project.provider(() -> javaPluginExtension(project).getTargetCompatibility()));
 				});
-		bootWarProvider.map((bootWar) -> bootWar.getClasspath());
+		bootWarProvider.map(War::getClasspath);
 		return bootWarProvider;
 	}
 
@@ -105,9 +108,12 @@ class WarPluginAction implements PluginApplicationAction {
 				.configure((buildImage) -> buildImage.getArchiveFile().set(bootWar.get().getArchiveFile()));
 	}
 
-	@SuppressWarnings("deprecation")
 	private void configureArtifactPublication(TaskProvider<BootWar> bootWar) {
 		this.singlePublishedArtifact.addWarCandidate(bootWar);
+	}
+
+	private JavaPluginExtension javaPluginExtension(Project project) {
+		return project.getExtensions().getByType(JavaPluginExtension.class);
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -59,9 +60,9 @@ public class OAuth2ResourceServerProperties {
 		private String jwkSetUri;
 
 		/**
-		 * JSON Web Algorithm used for verifying the digital signatures.
+		 * JSON Web Algorithms used for verifying the digital signatures.
 		 */
-		private String jwsAlgorithm = "RS256";
+		private List<String> jwsAlgorithms = Arrays.asList("RS256");
 
 		/**
 		 * URI that can either be an OpenID Connect discovery endpoint or an OAuth 2.0
@@ -87,12 +88,12 @@ public class OAuth2ResourceServerProperties {
 			this.jwkSetUri = jwkSetUri;
 		}
 
-		public String getJwsAlgorithm() {
-			return this.jwsAlgorithm;
+		public List<String> getJwsAlgorithms() {
+			return this.jwsAlgorithms;
 		}
 
-		public void setJwsAlgorithm(String jwsAlgorithm) {
-			this.jwsAlgorithm = jwsAlgorithm;
+		public void setJwsAlgorithms(List<String> jwsAlgortithms) {
+			this.jwsAlgorithms = jwsAlgortithms;
 		}
 
 		public String getIssuerUri() {

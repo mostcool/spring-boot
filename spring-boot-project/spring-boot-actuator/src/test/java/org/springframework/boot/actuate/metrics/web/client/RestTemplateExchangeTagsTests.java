@@ -38,6 +38,8 @@ import static org.mockito.Mockito.mock;
  * @author Nishant Raut
  * @author Brian Clozel
  */
+@SuppressWarnings({ "removal" })
+@Deprecated(since = "3.0.0", forRemoval = true)
 class RestTemplateExchangeTagsTests {
 
 	@Test
@@ -106,7 +108,7 @@ class RestTemplateExchangeTagsTests {
 	}
 
 	@Test
-	void clientNameTagIsHostOfRequestUri() throws IOException {
+	void clientNameTagIsHostOfRequestUri() {
 		ClientHttpRequest request = mock(ClientHttpRequest.class);
 		given(request.getURI()).willReturn(URI.create("https://example.org"));
 		Tag tag = RestTemplateExchangeTags.clientName(request);

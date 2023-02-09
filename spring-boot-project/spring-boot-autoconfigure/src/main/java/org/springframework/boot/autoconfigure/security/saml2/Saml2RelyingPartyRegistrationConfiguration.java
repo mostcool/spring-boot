@@ -23,7 +23,6 @@ import java.security.interfaces.RSAPrivateKey;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.saml2.Saml2RelyingPartyProperties.AssertingParty;
@@ -64,7 +63,7 @@ class Saml2RelyingPartyRegistrationConfiguration {
 	@Bean
 	RelyingPartyRegistrationRepository relyingPartyRegistrationRepository(Saml2RelyingPartyProperties properties) {
 		List<RelyingPartyRegistration> registrations = properties.getRegistration().entrySet().stream()
-				.map(this::asRegistration).collect(Collectors.toList());
+				.map(this::asRegistration).toList();
 		return new InMemoryRelyingPartyRegistrationRepository(registrations);
 	}
 
@@ -87,6 +86,9 @@ class Saml2RelyingPartyRegistrationConfiguration {
 		builder.assertingPartyDetails((details) -> details
 				.verificationX509Credentials((credentials) -> properties.getAssertingparty().getVerification()
 						.getCredentials().stream().map(this::asVerificationCredential).forEach(credentials::add)));
+		builder.singleLogoutServiceLocation(properties.getSinglelogout().getUrl());
+		builder.singleLogoutServiceResponseLocation(properties.getSinglelogout().getResponseUrl());
+		builder.singleLogoutServiceBinding(properties.getSinglelogout().getBinding());
 		builder.entityId(properties.getEntityId());
 		RelyingPartyRegistration registration = builder.build();
 		boolean signRequest = registration.getAssertingPartyDetails().getWantAuthnRequestsSigned();
@@ -103,6 +105,9 @@ class Saml2RelyingPartyRegistrationConfiguration {
 			map.from(assertingParty.getSinglesignon()::getUrl).to(details::singleSignOnServiceLocation);
 			map.from(assertingParty.getSinglesignon()::isSignRequest).when((signRequest) -> !usingMetadata)
 					.to(details::wantAuthnRequestsSigned);
+			map.from(assertingParty.getSinglelogout()::getUrl).to(details::singleLogoutServiceLocation);
+			map.from(assertingParty.getSinglelogout()::getResponseUrl).to(details::singleLogoutServiceResponseLocation);
+			map.from(assertingParty.getSinglelogout()::getBinding).to(details::singleLogoutServiceBinding);
 		};
 	}
 

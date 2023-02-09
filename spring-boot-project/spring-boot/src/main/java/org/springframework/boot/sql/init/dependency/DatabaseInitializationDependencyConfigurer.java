@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.aot.AotDetector;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -95,6 +96,9 @@ public class DatabaseInitializationDependencyConfigurer implements ImportBeanDef
 
 		@Override
 		public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+			if (AotDetector.useGeneratedArtifacts()) {
+				return;
+			}
 			InitializerBeanNames initializerBeanNames = detectInitializerBeanNames(beanFactory);
 			if (initializerBeanNames.isEmpty()) {
 				return;
@@ -162,8 +166,8 @@ public class DatabaseInitializationDependencyConfigurer implements ImportBeanDef
 			}
 			catch (NoSuchBeanDefinitionException ex) {
 				BeanFactory parentBeanFactory = beanFactory.getParentBeanFactory();
-				if (parentBeanFactory instanceof ConfigurableListableBeanFactory) {
-					return getBeanDefinition(beanName, (ConfigurableListableBeanFactory) parentBeanFactory);
+				if (parentBeanFactory instanceof ConfigurableListableBeanFactory configurableBeanFactory) {
+					return getBeanDefinition(beanName, configurableBeanFactory);
 				}
 				throw ex;
 			}

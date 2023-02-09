@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package org.springframework.boot.gradle.tasks.buildinfo;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -101,11 +100,11 @@ class BuildInfoIntegrationTests {
 	@TestTemplate
 	void notUpToDateWhenExecutedTwiceWithFixedTimeAndChangedGradlePropertiesProjectVersion() throws IOException {
 		Path gradleProperties = new File(this.gradleBuild.getProjectDir(), "gradle.properties").toPath();
-		Files.write(gradleProperties, "version=0.1.0".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE,
-				StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+		Files.writeString(gradleProperties, "version=0.1.0", StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+				StandardOpenOption.TRUNCATE_EXISTING);
 		assertThat(this.gradleBuild.build("buildInfo").task(":buildInfo").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
-		Files.write(gradleProperties, "version=0.2.0".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE,
-				StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+		Files.writeString(gradleProperties, "version=0.2.0", StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+				StandardOpenOption.TRUNCATE_EXISTING);
 		assertThat(this.gradleBuild.build("buildInfo").task(":buildInfo").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
 	}
 
@@ -113,7 +112,7 @@ class BuildInfoIntegrationTests {
 	void reproducibleOutputWithFixedTime() throws IOException, InterruptedException {
 		assertThat(this.gradleBuild.build("buildInfo", "-PnullTime").task(":buildInfo").getOutcome())
 				.isEqualTo(TaskOutcome.SUCCESS);
-		File buildInfoProperties = new File(this.gradleBuild.getProjectDir(), "build/build-info.properties");
+		File buildInfoProperties = new File(this.gradleBuild.getProjectDir(), "build/buildInfo/build-info.properties");
 		String firstHash = FileUtils.sha1Hash(buildInfoProperties);
 		assertThat(buildInfoProperties.delete()).isTrue();
 		Thread.sleep(1500);
@@ -124,17 +123,7 @@ class BuildInfoIntegrationTests {
 	}
 
 	@TestTemplate
-	void removePropertiesUsingNulls() {
-		assertThat(this.gradleBuild.build("buildInfo").task(":buildInfo").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
-		Properties buildInfoProperties = buildInfoProperties();
-		assertThat(buildInfoProperties).doesNotContainKey("build.group");
-		assertThat(buildInfoProperties).doesNotContainKey("build.artifact");
-		assertThat(buildInfoProperties).doesNotContainKey("build.version");
-		assertThat(buildInfoProperties).doesNotContainKey("build.name");
-	}
-
-	@TestTemplate
-	void removePropertiesUsingEmptyStrings() {
+	void excludeProperties() {
 		assertThat(this.gradleBuild.build("buildInfo").task(":buildInfo").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
 		Properties buildInfoProperties = buildInfoProperties();
 		assertThat(buildInfoProperties).doesNotContainKey("build.group");
@@ -144,7 +133,7 @@ class BuildInfoIntegrationTests {
 	}
 
 	private Properties buildInfoProperties() {
-		File file = new File(this.gradleBuild.getProjectDir(), "build/build-info.properties");
+		File file = new File(this.gradleBuild.getProjectDir(), "build/buildInfo/build-info.properties");
 		assertThat(file).isFile();
 		Properties properties = new Properties();
 		try (FileReader reader = new FileReader(file)) {

@@ -97,13 +97,13 @@ public class CloudFoundryVcapEnvironmentPostProcessor implements EnvironmentPost
 
 	private final Log logger;
 
-	// Before ConfigFileApplicationListener so values there can use these ones
+	// Before ConfigDataEnvironmentPostProcessor so values there can use these
 	private int order = ConfigDataEnvironmentPostProcessor.ORDER - 1;
 
 	/**
 	 * Create a new {@link CloudFoundryVcapEnvironmentPostProcessor} instance.
 	 * @param logFactory the log factory to use
-	 * @since 3.0
+	 * @since 3.0.0
 	 */
 	public CloudFoundryVcapEnvironmentPostProcessor(DeferredLogFactory logFactory) {
 		this.logger = logFactory.getLog(CloudFoundryVcapEnvironmentPostProcessor.class);

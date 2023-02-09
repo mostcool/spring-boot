@@ -106,7 +106,7 @@ public class Restarter {
 
 	private boolean enabled = true;
 
-	private URL[] initialUrls;
+	private final URL[] initialUrls;
 
 	private final String mainClassName;
 
@@ -320,13 +320,13 @@ public class Restarter {
 		System.runFinalization();
 	}
 
-	private void cleanupCaches() throws Exception {
+	private void cleanupCaches() {
 		Introspector.flushCaches();
 		cleanupKnownCaches();
 	}
 
-	private void cleanupKnownCaches() throws Exception {
-		// Whilst not strictly necessary it helps to cleanup soft reference caches
+	private void cleanupKnownCaches() {
+		// Whilst not strictly necessary it helps to clean up soft reference caches
 		// early rather than waiting for memory limits to be reached
 		ResolvableType.clearCache();
 		cleanCachedIntrospectionResultsCache();
@@ -334,13 +334,13 @@ public class Restarter {
 		clearAnnotationUtilsCache();
 	}
 
-	private void cleanCachedIntrospectionResultsCache() throws Exception {
+	private void cleanCachedIntrospectionResultsCache() {
 		clear(CachedIntrospectionResults.class, "acceptedClassLoaders");
 		clear(CachedIntrospectionResults.class, "strongClassCache");
 		clear(CachedIntrospectionResults.class, "softClassCache");
 	}
 
-	private void clearAnnotationUtilsCache() throws Exception {
+	private void clearAnnotationUtilsCache() {
 		try {
 			AnnotationUtils.clearCache();
 		}
@@ -350,7 +350,7 @@ public class Restarter {
 		}
 	}
 
-	private void clear(Class<?> type, String fieldName) throws Exception {
+	private void clear(Class<?> type, String fieldName) {
 		try {
 			Field field = type.getDeclaredField(fieldName);
 			field.setAccessible(true);
@@ -411,8 +411,8 @@ public class Restarter {
 		if (applicationContext != null && applicationContext.getParent() != null) {
 			return;
 		}
-		if (applicationContext instanceof GenericApplicationContext) {
-			prepare((GenericApplicationContext) applicationContext);
+		if (applicationContext instanceof GenericApplicationContext genericContext) {
+			prepare(genericContext);
 		}
 		this.rootContexts.add(applicationContext);
 	}

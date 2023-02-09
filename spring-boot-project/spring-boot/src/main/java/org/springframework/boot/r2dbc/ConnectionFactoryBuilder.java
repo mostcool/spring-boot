@@ -244,6 +244,10 @@ public final class ConnectionFactoryBuilder {
 					.to(builder::maxIdleTime);
 			map.from(options.getValue(PoolingConnectionFactoryProvider.MAX_CREATE_CONNECTION_TIME)).as(this::toDuration)
 					.to(builder::maxCreateConnectionTime);
+			map.from(options.getValue(PoolingConnectionFactoryProvider.MAX_VALIDATION_TIME)).as(this::toDuration)
+					.to(builder::maxValidationTime);
+			map.from(options.getValue(PoolingConnectionFactoryProvider.MIN_IDLE)).as(this::toInteger)
+					.to(builder::minIdle);
 			map.from(options.getValue(PoolingConnectionFactoryProvider.POOL_NAME)).as(this::toString).to(builder::name);
 			map.from(options.getValue(PoolingConnectionFactoryProvider.PRE_RELEASE)).to((function) -> builder
 					.preRelease((Function<? super Connection, ? extends Publisher<Void>>) function));
@@ -283,8 +287,8 @@ public final class ConnectionFactoryBuilder {
 			if (type.isInstance(object)) {
 				return type.cast(object);
 			}
-			if (object instanceof String) {
-				return converter.apply((String) object);
+			if (object instanceof String string) {
+				return converter.apply(string);
 			}
 			throw new IllegalArgumentException("Cannot convert '" + object + "' to " + type.getName());
 		}

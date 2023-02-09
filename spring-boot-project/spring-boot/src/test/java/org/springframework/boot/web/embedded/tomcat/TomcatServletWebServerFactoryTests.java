@@ -19,7 +19,6 @@ package org.springframework.boot.web.embedded.tomcat;
 import java.io.File;
 import java.io.IOException;
 import java.net.SocketException;
-import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -58,11 +57,11 @@ import org.apache.catalina.util.CharsetMapper;
 import org.apache.catalina.valves.RemoteIpValve;
 import org.apache.coyote.ProtocolHandler;
 import org.apache.coyote.http11.AbstractHttp11Protocol;
-import org.apache.http.HttpResponse;
-import org.apache.http.NoHttpResponseException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.conn.HttpHostConnectException;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.HttpHostConnectException;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.jasper.servlet.JspServlet;
 import org.apache.tomcat.JarScanFilter;
 import org.apache.tomcat.JarScanType;
@@ -70,6 +69,7 @@ import org.apache.tomcat.util.scan.StandardJarScanFilter;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -118,6 +118,11 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 	@AfterEach
 	void restoreTccl() {
 		Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+	}
+
+	@Override
+	protected boolean isCookieCommentSupported() {
+		return false;
 	}
 
 	// JMX MBean names clash if you get more than one Engine with the same name...
@@ -419,6 +424,7 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 	}
 
 	@Test
+	@Disabled("See https://github.com/apache/tomcat/commit/c3e33b62101c5ee155808dd1932acde0cac65fe3")
 	void sessionIdGeneratorIsConfiguredWithAttributesFromTheManager() {
 		System.setProperty("jvmRoute", "test");
 		try {
@@ -477,8 +483,8 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 	void exceptionThrownOnLoadFailureWhenFailCtxIfServletStartFailsIsTrue() {
 		TomcatServletWebServerFactory factory = getFactory();
 		factory.addContextCustomizers((context) -> {
-			if (context instanceof StandardContext) {
-				((StandardContext) context).setFailCtxIfServletStartFails(true);
+			if (context instanceof StandardContext standardContext) {
+				standardContext.setFailCtxIfServletStartFails(true);
 			}
 		});
 		this.webServer = factory
@@ -490,8 +496,8 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 	void exceptionThrownOnLoadFailureWhenFailCtxIfServletStartFailsIsFalse() {
 		TomcatServletWebServerFactory factory = getFactory();
 		factory.addContextCustomizers((context) -> {
-			if (context instanceof StandardContext) {
-				((StandardContext) context).setFailCtxIfServletStartFails(false);
+			if (context instanceof StandardContext standardContext) {
+				standardContext.setFailCtxIfServletStartFails(false);
 			}
 		});
 		this.webServer = factory
@@ -512,7 +518,7 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 	}
 
 	@Test
-	void nonExistentUploadDirectoryIsCreatedUponMultipartUpload() throws IOException, URISyntaxException {
+	void nonExistentUploadDirectoryIsCreatedUponMultipartUpload() {
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
 		AtomicReference<ServletContext> servletContextReference = new AtomicReference<>();
 		factory.addInitializers((servletContext) -> {
@@ -628,8 +634,8 @@ class TomcatServletWebServerFactoryTests extends AbstractServletWebServerFactory
 			return result;
 		}, (result) -> result instanceof Exception);
 		assertThat(idleConnectionRequestResult).isInstanceOfAny(SocketException.class, NoHttpResponseException.class);
-		if (idleConnectionRequestResult instanceof SocketException) {
-			assertThat((SocketException) idleConnectionRequestResult).hasMessage("Connection reset");
+		if (idleConnectionRequestResult instanceof SocketException socketException) {
+			assertThat(socketException).hasMessage("Connection reset");
 		}
 		blockingServlet.admitOne();
 		Object response = request.get();

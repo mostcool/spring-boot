@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,7 +55,7 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-context")
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-core")
 						.hasEntryWithNameStartingWith("WEB-INF/lib/spring-jcl")
-						.hasEntryWithNameStartingWith("WEB-INF/lib-provided/jakarta.servlet-api-5")
+						.hasEntryWithNameStartingWith("WEB-INF/lib-provided/jakarta.servlet-api-6")
 						.hasEntryWithName("org/springframework/boot/loader/WarLauncher.class")
 						.hasEntryWithName("WEB-INF/classes/org/test/SampleApplication.class")
 						.hasEntryWithName("index.html")
@@ -99,8 +98,7 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 			try (JarFile jar = new JarFile(repackaged)) {
 				List<String> unreproducibleEntries = jar.stream()
 						.filter((entry) -> entry.getLastModifiedTime().toMillis() != 1584352800000L)
-						.map((entry) -> entry.getName() + ": " + entry.getLastModifiedTime())
-						.collect(Collectors.toList());
+						.map((entry) -> entry.getName() + ": " + entry.getLastModifiedTime()).toList();
 				assertThat(unreproducibleEntries).isEmpty();
 				warHash.set(FileUtils.sha1Hash(repackaged));
 				FileSystemUtils.deleteRecursively(project);
@@ -113,8 +111,7 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 	}
 
 	@TestTemplate
-	void whenWarIsRepackagedWithOutputTimestampConfiguredThenLibrariesAreSorted(MavenBuild mavenBuild)
-			throws InterruptedException {
+	void whenWarIsRepackagedWithOutputTimestampConfiguredThenLibrariesAreSorted(MavenBuild mavenBuild) {
 		mavenBuild.project("war-output-timestamp").execute((project) -> {
 			File repackaged = new File(project, "target/war-output-timestamp-0.0.1.BUILD-SNAPSHOT.war");
 			List<String> sortedLibs = Arrays.asList(

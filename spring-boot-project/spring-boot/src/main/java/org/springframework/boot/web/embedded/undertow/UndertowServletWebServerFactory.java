@@ -94,7 +94,7 @@ public class UndertowServletWebServerFactory extends AbstractServletWebServerFac
 
 	private static final Set<Class<?>> NO_CLASSES = Collections.emptySet();
 
-	private UndertowWebServerFactoryDelegate delegate = new UndertowWebServerFactoryDelegate();
+	private final UndertowWebServerFactoryDelegate delegate = new UndertowWebServerFactoryDelegate();
 
 	private Set<UndertowDeploymentInfoCustomizer> deploymentInfoCustomizers = new LinkedHashSet<>();
 
@@ -327,8 +327,8 @@ public class UndertowServletWebServerFactory extends AbstractServletWebServerFac
 		addLocaleMappings(deployment);
 		DeploymentManager manager = Servlets.newContainer().addDeployment(deployment);
 		manager.deploy();
-		if (manager.getDeployment() instanceof DeploymentImpl) {
-			removeSuperfluousMimeMappings((DeploymentImpl) manager.getDeployment(), deployment);
+		if (manager.getDeployment() instanceof DeploymentImpl managerDeployment) {
+			removeSuperfluousMimeMappings(managerDeployment, deployment);
 		}
 		SessionManager sessionManager = manager.getDeployment().getSessionManager();
 		Duration timeoutDuration = getSession().getTimeout();
@@ -639,6 +639,7 @@ public class UndertowServletWebServerFactory extends AbstractServletWebServerFac
 			}
 		}
 
+		@SuppressWarnings("removal")
 		private jakarta.servlet.http.Cookie asServletCookie(Cookie cookie) {
 			PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 			jakarta.servlet.http.Cookie result = new jakarta.servlet.http.Cookie(cookie.getName(), cookie.getValue());

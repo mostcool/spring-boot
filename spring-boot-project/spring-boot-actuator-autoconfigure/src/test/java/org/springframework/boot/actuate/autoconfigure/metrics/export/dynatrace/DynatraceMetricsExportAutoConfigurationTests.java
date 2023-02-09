@@ -50,7 +50,7 @@ class DynatraceMetricsExportAutoConfigurationTests {
 	@Test
 	void failsWithADeviceIdWithoutAUri() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
-				.withPropertyValues("management.dynatrace.metrics.export.device-id:dev-1")
+				.withPropertyValues("management.dynatrace.metrics.export.v1.device-id:dev-1")
 				.run((context) -> assertThat(context).hasFailed());
 	}
 
@@ -135,17 +135,11 @@ class DynatraceMetricsExportAutoConfigurationTests {
 
 		@Bean
 		DynatraceConfig customConfig() {
-			return (key) -> {
-				switch (key) {
-				case "dynatrace.uri":
-					return "https://dynatrace.example.com";
-				case "dynatrace.apiToken":
-					return "abcde";
-				case "dynatrace.deviceId":
-					return "test";
-				default:
-					return null;
-				}
+			return (key) -> switch (key) {
+				case "dynatrace.uri" -> "https://dynatrace.example.com";
+				case "dynatrace.apiToken" -> "abcde";
+				case "dynatrace.deviceId" -> "test";
+				default -> null;
 			};
 		}
 

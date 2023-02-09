@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ class JmsAutoConfigurationTests {
 				.run(this::testJmsTemplateBackOffEverything);
 	}
 
-	private void testJmsTemplateBackOffEverything(AssertableApplicationContext loaded) throws IOException {
+	private void testJmsTemplateBackOffEverything(AssertableApplicationContext loaded) {
 		JmsTemplate jmsTemplate = loaded.getBean(JmsTemplate.class);
 		assertThat(jmsTemplate.getPriority()).isEqualTo(999);
 		assertThat(loaded.getBeansOfType(ActiveMQConnectionFactory.class)).containsOnlyKeys("customConnectionFactory");
@@ -261,7 +261,7 @@ class JmsAutoConfigurationTests {
 					assertThat(jmsTemplate.isPubSubDomain()).isFalse();
 					assertThat(jmsTemplate.getDefaultDestinationName()).isEqualTo("testQueue");
 					assertThat(jmsTemplate.getDeliveryDelay()).isEqualTo(500);
-					assertThat(jmsTemplate.getDeliveryMode()).isEqualTo(1);
+					assertThat(jmsTemplate.getDeliveryMode()).isOne();
 					assertThat(jmsTemplate.getPriority()).isEqualTo(6);
 					assertThat(jmsTemplate.getTimeToLive()).isEqualTo(6000);
 					assertThat(jmsTemplate.isExplicitQosEnabled()).isTrue();

@@ -32,8 +32,8 @@ import org.springframework.boot.BootstrapRegistry.InstanceSupplier;
 import org.springframework.boot.ConfigurableBootstrapContext;
 import org.springframework.boot.DefaultBootstrapContext;
 import org.springframework.boot.logging.DeferredLogFactory;
-import org.springframework.boot.testsupport.mock.MockSpringFactoriesLoader;
 import org.springframework.core.env.PropertySource;
+import org.springframework.core.test.io.support.MockSpringFactoriesLoader;
 import org.springframework.mock.env.MockPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,11 +49,11 @@ import static org.mockito.Mockito.mock;
  */
 class ConfigDataLoadersTests {
 
-	private DeferredLogFactory logFactory = Supplier::get;
+	private final DeferredLogFactory logFactory = Supplier::get;
 
-	private DefaultBootstrapContext bootstrapContext = new DefaultBootstrapContext();
+	private final DefaultBootstrapContext bootstrapContext = new DefaultBootstrapContext();
 
-	private ConfigDataLoaderContext context = mock(ConfigDataLoaderContext.class);
+	private final ConfigDataLoaderContext context = mock(ConfigDataLoaderContext.class);
 
 	@TempDir
 	private File tempDir;
@@ -75,7 +75,7 @@ class ConfigDataLoadersTests {
 	}
 
 	@Test
-	void createWhenLoaderHasLogParameterThrowsException() throws Exception {
+	void createWhenLoaderHasLogParameterThrowsException() {
 		MockSpringFactoriesLoader springFactoriesLoader = new MockSpringFactoriesLoader();
 		springFactoriesLoader.add(ConfigDataLoader.class, LogConfigDataLoader.class);
 		assertThatIllegalArgumentException()

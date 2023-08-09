@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import java.util.Set;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.handler.DefaultArtifactHandler;
-import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
 import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
 import org.apache.maven.artifact.resolver.ResolutionErrorHandler;
@@ -101,14 +100,16 @@ public class ProcessTestAotMojo extends AbstractAotMojo {
 	/**
 	 * Local artifact repository used to resolve JUnit platform launcher jars.
 	 */
+	@SuppressWarnings("deprecation")
 	@Parameter(defaultValue = "${localRepository}", required = true, readonly = true)
-	private ArtifactRepository localRepository;
+	private org.apache.maven.artifact.repository.ArtifactRepository localRepository;
 
 	/**
 	 * Remote artifact repositories used to resolve JUnit platform launcher jars.
 	 */
+	@SuppressWarnings("deprecation")
 	@Parameter(defaultValue = "${project.remoteArtifactRepositories}", required = true, readonly = true)
-	private List<ArtifactRepository> remoteRepositories;
+	private List<org.apache.maven.artifact.repository.ArtifactRepository> remoteRepositories;
 
 	@Component
 	private RepositorySystem repositorySystem;
@@ -118,6 +119,10 @@ public class ProcessTestAotMojo extends AbstractAotMojo {
 
 	@Override
 	protected void executeAot() throws Exception {
+		if (this.project.getPackaging().equals("pom")) {
+			getLog().debug("process-test-aot goal could not be applied to pom project.");
+			return;
+		}
 		if (Boolean.getBoolean("skipTests") || Boolean.getBoolean("maven.test.skip")) {
 			getLog().info("Skipping AOT test processing since tests are skipped");
 			return;
@@ -150,7 +155,7 @@ public class ProcessTestAotMojo extends AbstractAotMojo {
 				this.generatedClasses };
 		URL[] classPath = getClassPath(directories);
 		if (!includeJUnitPlatformLauncher || this.project.getArtifactMap()
-				.containsKey(JUNIT_PLATFORM_GROUP_ID + ":" + JUNIT_PLATFORM_LAUNCHER_ARTIFACT_ID)) {
+			.containsKey(JUNIT_PLATFORM_GROUP_ID + ":" + JUNIT_PLATFORM_LAUNCHER_ARTIFACT_ID)) {
 			return classPath;
 		}
 		return addJUnitPlatformLauncher(classPath);

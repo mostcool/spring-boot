@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,10 +98,12 @@ public enum DatabaseDriver {
 	 * @since 2.1.0
 	 */
 	HANA("HDB", "com.sap.db.jdbc.Driver", "com.sap.db.jdbcext.XADataSourceSAP", "SELECT 1 FROM SYS.DUMMY") {
+
 		@Override
 		protected Collection<String> getUrlPrefixes() {
 			return Collections.singleton("sap");
 		}
+
 	},
 
 	/**
@@ -240,12 +242,16 @@ public enum DatabaseDriver {
 		return name().toLowerCase(Locale.ENGLISH);
 	}
 
-	protected boolean matchProductName(String productName) {
-		return this.productName != null && this.productName.equalsIgnoreCase(productName);
-	}
-
+	/**
+	 * Return the url prefixes of this driver.
+	 * @return the url prefixes
+	 */
 	protected Collection<String> getUrlPrefixes() {
 		return Collections.singleton(name().toLowerCase(Locale.ENGLISH));
+	}
+
+	protected boolean matchProductName(String productName) {
+		return this.productName != null && this.productName.equalsIgnoreCase(productName);
 	}
 
 	/**
@@ -314,7 +320,9 @@ public enum DatabaseDriver {
 	 * @param dataSource data source to inspect
 	 * @return the database driver of {@link #UNKNOWN} if not found
 	 * @since 2.6.0
+	 * @deprecated since 2.7.15 for removal in 3.3.0 with no replacement
 	 */
+	@Deprecated(since = "2.7.15", forRemoval = true)
 	public static DatabaseDriver fromDataSource(DataSource dataSource) {
 		try {
 			String productName = JdbcUtils.commonDatabaseName(

@@ -17,20 +17,29 @@
 package org.springframework.boot.actuate.autoconfigure.metrics.export.otlp;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import io.micrometer.registry.otlp.AggregationTemporality;
 import io.micrometer.registry.otlp.OtlpConfig;
 
 import org.springframework.boot.actuate.autoconfigure.metrics.export.properties.StepRegistryPropertiesConfigAdapter;
+import org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryProperties;
+import org.springframework.util.CollectionUtils;
 
 /**
  * Adapter to convert {@link OtlpProperties} to an {@link OtlpConfig}.
  *
  * @author Eddú Meléndez
+ * @author Jonatan Ivanov
+ * @author Moritz Halbritter
  */
 class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<OtlpProperties> implements OtlpConfig {
 
-	OtlpPropertiesConfigAdapter(OtlpProperties properties) {
+	private final OpenTelemetryProperties openTelemetryProperties;
+
+	OtlpPropertiesConfigAdapter(OtlpProperties properties, OpenTelemetryProperties openTelemetryProperties) {
 		super(properties);
+		this.openTelemetryProperties = openTelemetryProperties;
 	}
 
 	@Override
@@ -44,13 +53,27 @@ class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<Ot
 	}
 
 	@Override
+	public AggregationTemporality aggregationTemporality() {
+		return get(OtlpProperties::getAggregationTemporality, OtlpConfig.super::aggregationTemporality);
+	}
+
+	@Override
+	@SuppressWarnings("removal")
 	public Map<String, String> resourceAttributes() {
+		if (!CollectionUtils.isEmpty(this.openTelemetryProperties.getResourceAttributes())) {
+			return this.openTelemetryProperties.getResourceAttributes();
+		}
 		return get(OtlpProperties::getResourceAttributes, OtlpConfig.super::resourceAttributes);
 	}
 
 	@Override
 	public Map<String, String> headers() {
 		return get(OtlpProperties::getHeaders, OtlpConfig.super::headers);
+	}
+
+	@Override
+	public TimeUnit baseTimeUnit() {
+		return get(OtlpProperties::getBaseTimeUnit, OtlpConfig.super::baseTimeUnit);
 	}
 
 }

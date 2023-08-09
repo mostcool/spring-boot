@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package org.springframework.boot.actuate.autoconfigure.metrics.export.wavefront;
+
+import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
@@ -32,6 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WavefrontPropertiesConfigAdapterTests extends
 		PushRegistryPropertiesConfigAdapterTests<WavefrontProperties.Metrics.Export, WavefrontPropertiesConfigAdapter> {
+
+	protected WavefrontPropertiesConfigAdapterTests() {
+		super(WavefrontPropertiesConfigAdapter.class);
+	}
 
 	@Override
 	protected WavefrontProperties.Metrics.Export createProperties() {
@@ -57,6 +63,48 @@ class WavefrontPropertiesConfigAdapterTests extends
 		WavefrontProperties properties = new WavefrontProperties();
 		properties.getSender().setBatchSize(10042);
 		assertThat(createConfigAdapter(properties.getMetrics().getExport()).batchSize()).isEqualTo(10042);
+	}
+
+	@Test
+	void whenPropertiesUriIsSetAdapterUriReturnsIt() {
+		WavefrontProperties properties = new WavefrontProperties();
+		properties.setUri(URI.create("https://example.wavefront.com"));
+		assertThat(new WavefrontPropertiesConfigAdapter(properties).uri()).isEqualTo("https://example.wavefront.com");
+	}
+
+	@Test
+	void whenPropertiesApiTokenIsSetAdapterApiTokenReturnsIt() {
+		WavefrontProperties properties = new WavefrontProperties();
+		properties.setApiToken("my-token");
+		assertThat(new WavefrontPropertiesConfigAdapter(properties).apiToken()).isEqualTo("my-token");
+	}
+
+	@Test
+	void whenPropertiesSourceIsSetAdapterSourceReturnsIt() {
+		WavefrontProperties properties = new WavefrontProperties();
+		properties.setSource("DESKTOP-GA5");
+		assertThat(new WavefrontPropertiesConfigAdapter(properties).source()).isEqualTo("DESKTOP-GA5");
+	}
+
+	@Test
+	void whenPropertiesReportMinuteDistributionIsSetAdapterReportMinuteDistributionReturnsIt() {
+		Export properties = createProperties();
+		properties.setReportMinuteDistribution(false);
+		assertThat(createConfigAdapter(properties).reportMinuteDistribution()).isFalse();
+	}
+
+	@Test
+	void whenPropertiesReportHourDistributionIsSetAdapterReportHourDistributionReturnsIt() {
+		Export properties = createProperties();
+		properties.setReportHourDistribution(true);
+		assertThat(createConfigAdapter(properties).reportHourDistribution()).isTrue();
+	}
+
+	@Test
+	void whenPropertiesReportDayDistributionIsSetAdapterReportDayDistributionReturnsIt() {
+		Export properties = createProperties();
+		properties.setReportDayDistribution(true);
+		assertThat(createConfigAdapter(properties).reportDayDistribution()).isTrue();
 	}
 
 }

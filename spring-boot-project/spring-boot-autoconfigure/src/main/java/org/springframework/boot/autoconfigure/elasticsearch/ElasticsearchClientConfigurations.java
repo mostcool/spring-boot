@@ -31,6 +31,7 @@ import org.elasticsearch.client.RestClient;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,8 +44,14 @@ import org.springframework.context.annotation.Import;
  */
 class ElasticsearchClientConfigurations {
 
+	@Import({ JacksonJsonpMapperConfiguration.class, JsonbJsonpMapperConfiguration.class,
+			SimpleJsonpMapperConfiguration.class })
+	static class JsonpMapperConfiguration {
+
+	}
+
 	@ConditionalOnMissingBean(JsonpMapper.class)
-	@ConditionalOnBean(ObjectMapper.class)
+	@ConditionalOnClass(ObjectMapper.class)
 	@Configuration(proxyBeanMethods = false)
 	static class JacksonJsonpMapperConfiguration {
 
@@ -78,9 +85,6 @@ class ElasticsearchClientConfigurations {
 
 	}
 
-	@Import({ JacksonJsonpMapperConfiguration.class, JsonbJsonpMapperConfiguration.class,
-			SimpleJsonpMapperConfiguration.class })
-	@ConditionalOnBean(RestClient.class)
 	@ConditionalOnMissingBean(ElasticsearchTransport.class)
 	static class ElasticsearchTransportConfiguration {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,8 +50,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SpringBootMockMvcBuilderCustomizerTests {
 
-	private SpringBootMockMvcBuilderCustomizer customizer;
-
 	@Test
 	@SuppressWarnings("unchecked")
 	void customizeShouldAddFilters() {
@@ -61,10 +59,10 @@ class SpringBootMockMvcBuilderCustomizerTests {
 		context.register(ServletConfiguration.class, FilterConfiguration.class);
 		context.refresh();
 		DefaultMockMvcBuilder builder = MockMvcBuilders.webAppContextSetup(context);
-		this.customizer = new SpringBootMockMvcBuilderCustomizer(context);
-		this.customizer.customize(builder);
+		SpringBootMockMvcBuilderCustomizer customizer = new SpringBootMockMvcBuilderCustomizer(context);
+		customizer.customize(builder);
 		FilterRegistrationBean<?> registrationBean = (FilterRegistrationBean<?>) context
-				.getBean("filterRegistrationBean");
+			.getBean("filterRegistrationBean");
 		Filter testFilter = (Filter) context.getBean("testFilter");
 		Filter otherTestFilter = registrationBean.getFilter();
 		List<Filter> filters = (List<Filter>) ReflectionTestUtils.getField(builder, "filters");
@@ -94,11 +92,11 @@ class SpringBootMockMvcBuilderCustomizerTests {
 			});
 			thread.start();
 		}
-		latch.await(60, TimeUnit.SECONDS);
+		assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
 
 		assertThat(delegate.allWritten).hasSize(10000);
 		assertThat(delegate.allWritten)
-				.allSatisfy((written) -> assertThat(written).containsExactly("1", "2", "3", "4", "5"));
+			.allSatisfy((written) -> assertThat(written).containsExactly("1", "2", "3", "4", "5"));
 	}
 
 	private static final class CapturingLinesWriter implements LinesWriter {

@@ -39,7 +39,7 @@ class ClientHttpRequestFactoriesHttpComponentsTests
 
 	@Override
 	protected long connectTimeout(HttpComponentsClientHttpRequestFactory requestFactory) {
-		return (int) ReflectionTestUtils.getField(requestFactory, "connectTimeout");
+		return (long) ReflectionTestUtils.getField(requestFactory, "connectTimeout");
 	}
 
 	@Override
@@ -48,7 +48,8 @@ class ClientHttpRequestFactoriesHttpComponentsTests
 		HttpClient httpClient = requestFactory.getHttpClient();
 		Object connectionManager = ReflectionTestUtils.getField(httpClient, "connManager");
 		SocketConfig socketConfig = ((Resolver<HttpRoute, SocketConfig>) ReflectionTestUtils.getField(connectionManager,
-				"socketConfigResolver")).resolve(null);
+				"socketConfigResolver"))
+			.resolve(null);
 		return socketConfig.getSoTimeout().toMilliseconds();
 	}
 

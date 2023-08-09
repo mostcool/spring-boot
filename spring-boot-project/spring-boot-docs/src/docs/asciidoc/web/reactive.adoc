@@ -46,6 +46,28 @@ If you want to take complete control of Spring WebFlux, you can add your own `@C
 
 
 
+[[web.reactive.webflux.conversion-service]]
+==== Spring WebFlux Conversion Service
+If you want to customize the `ConversionService` used by Spring WebFlux, you can provide a `WebFluxConfigurer` bean with an `addFormatters` method.
+
+Conversion can also be customized using the `spring.webflux.format.*` configuration properties.
+When not configured, the following defaults are used:
+
+|===
+|Property |`DateTimeFormatter`
+
+|configprop:spring.webflux.format.date[]
+|`ofLocalizedDate(FormatStyle.SHORT)`
+
+|configprop:spring.webflux.format.time[]
+|`ofLocalizedTime(FormatStyle.SHORT)`
+
+|configprop:spring.webflux.format.date-time[]
+|`ofLocalizedDateTime(FormatStyle.SHORT)`
+|===
+
+
+
 [[web.reactive.webflux.httpcodecs]]
 ==== HTTP Codecs with HttpMessageReaders and HttpMessageWriters
 Spring WebFlux uses the `HttpMessageReader` and `HttpMessageWriter` interfaces to convert HTTP requests and responses.
@@ -159,9 +181,10 @@ include::code:MyExceptionHandlingController[]
 
 [[web.reactive.webflux.error-handling.error-pages]]
 ===== Custom Error Pages
-If you want to display a custom HTML error page for a given status code, you can add a file to an `/error` directory.
+If you want to display a custom HTML error page for a given status code, you can add views that resolve from `error/*`, for example by adding files to a `/error` directory.
 Error pages can either be static HTML (that is, added under any of the static resource directories) or built with templates.
-The name of the file should be the exact status code or a series mask.
+The name of the file should be the exact status code, a status code series mask, or `error` for a default if nothing else matches.
+Note that the path to the default error view is `error/error`, whereas with Spring MVC the default error view is `error`.
 
 For example, to map `404` to a static HTML file, your directory structure would be as follows:
 

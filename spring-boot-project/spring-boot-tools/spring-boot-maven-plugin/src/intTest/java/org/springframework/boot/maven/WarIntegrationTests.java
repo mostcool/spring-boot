@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,10 +57,10 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 				.hasEntryWithNameStartingWith("WEB-INF/lib/spring-core")
 				.hasEntryWithNameStartingWith("WEB-INF/lib/spring-jcl")
 				.hasEntryWithNameStartingWith("WEB-INF/lib-provided/jakarta.servlet-api-6")
-				.hasEntryWithName("org/springframework/boot/loader/WarLauncher.class")
+				.hasEntryWithName("org/springframework/boot/loader/launch/WarLauncher.class")
 				.hasEntryWithName("WEB-INF/classes/org/test/SampleApplication.class")
 				.hasEntryWithName("index.html")
-				.manifest((manifest) -> manifest.hasMainClass("org.springframework.boot.loader.WarLauncher")
+				.manifest((manifest) -> manifest.hasMainClass("org.springframework.boot.loader.launch.WarLauncher")
 					.hasStartClass("org.test.SampleApplication")
 					.hasAttribute("Not-Used", "Foo")));
 	}
@@ -167,6 +167,7 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 					.anyMatch((dependency) -> dependency.startsWith("WEB-INF/lib-provided/"));
 			}
 			catch (IOException ex) {
+				// Ignore
 			}
 		});
 	}

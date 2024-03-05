@@ -35,10 +35,18 @@ When this module is included as a dependency Spring Boot will do the following:
 * Create service connection beans for each supported container
 * Call `docker compose stop` when the application is shutdown
 
-NOTE: The `docker compose` or `docker-compose` CLI application needs to be on your path in order for Spring Boot’s support to work correctly.
+If the Docker Compose services are already running when starting the application, Spring Boot will only create the service connection beans for each supported container.
+It will not call `docker compose up` again and it will not call `docker compose stop` when the application is shutdown.
 
 NOTE: By default, Spring Boot's Docker Compose support is disabled when running tests.
 To enable it, set configprop:spring.docker.compose.skip.in-tests[] to `false`.
+
+
+
+[[features.docker-compose.prerequisites]]
+=== Prerequisites
+You need to have the `docker` and `docker compose` (or `docker-compose`) CLI applications on your path.
+The minimum supported Docker Compose version is 2.2.0.
 
 
 
@@ -62,28 +70,46 @@ The following service connections are currently supported:
 | Connection Details | Matched on
 
 | `ActiveMQConnectionDetails`
-| Containers named "symptoma/activemq"
+| Containers named "symptoma/activemq" or "apache/activemq-classic"
+
+| `ArtemisConnectionDetails`
+| Containers named "apache/activemq-artemis"
 
 | `CassandraConnectionDetails`
-| Containers named "cassandra"
+| Containers named "cassandra" or "bitnami/cassandra"
 
 | `ElasticsearchConnectionDetails`
-| Containers named "elasticsearch"
+| Containers named "elasticsearch" or "bitnami/elasticsearch"
 
 | `JdbcConnectionDetails`
-| Containers named "gvenzl/oracle-xe", "mariadb", "mssql/server", "mysql", or "postgres"
+| Containers named "gvenzl/oracle-free", "gvenzl/oracle-xe", "mariadb", "bitnami/mariadb", "mssql/server", "mysql", "bitnami/mysql", "postgres", or "bitnami/postgresql"
+
+| `LdapConnectionDetails`
+| Containers named "osixia/openldap"
 
 | `MongoConnectionDetails`
-| Containers named "mongo"
+| Containers named "mongo" or "bitnami/mongodb"
+
+| `Neo4jConnectionDetails`
+| Containers named "neo4j" or "bitnami/neo4j"
+
+| `OtlpMetricsConnectionDetails`
+| Containers named "otel/opentelemetry-collector-contrib"
+
+| `OtlpTracingConnectionDetails`
+| Containers named "otel/opentelemetry-collector-contrib"
+
+| `PulsarConnectionDetails`
+| Containers named "apachepulsar/pulsar"
 
 | `R2dbcConnectionDetails`
-| Containers named "gvenzl/oracle-xe", "mariadb", "mssql/server", "mysql", or "postgres"
+| Containers named "gvenzl/oracle-free", "gvenzl/oracle-xe", "mariadb", "bitnami/mariadb", "mssql/server", "mysql", "bitnami/mysql", "postgres", or "bitnami/postgresql"
 
 | `RabbitConnectionDetails`
-| Containers named "rabbitmq"
+| Containers named "rabbitmq" or "bitnami/rabbitmq"
 
 | `RedisConnectionDetails`
-| Containers named "redis"
+| Containers named "redis" or "bitnami/redis"
 
 | `ZipkinConnectionDetails`
 | Containers named "openzipkin/zipkin".

@@ -19,11 +19,18 @@ For more info about Spring Batch, see the {spring-batch}[Spring Batch project pa
 
 
 
+[[howto.batch.specifying-a-transaction-manager]]
+=== Specifying a Batch Transaction Manager
+Similar to <<howto.batch.specifying-a-data-source>>, you can define a `PlatformTransactionManager` for use in the batch processing by marking it as `@BatchTransactionManager`.
+If you do so and want two transaction managers, remember to mark the other one as `@Primary`.
+
+
+
 [[howto.batch.running-jobs-on-startup]]
 === Running Spring Batch Jobs on Startup
 Spring Batch auto-configuration is enabled by adding `spring-boot-starter-batch` to your application's classpath.
 
-If a single `Job` is found in the application context, it is executed on startup (see {spring-boot-autoconfigure-module-code}/batch/JobLauncherApplicationRunner.java[`JobLauncherApplicationRunner`] for details).
+If a single `Job` bean is found in the application context, it is executed on startup (see {spring-boot-autoconfigure-module-code}/batch/JobLauncherApplicationRunner.java[`JobLauncherApplicationRunner`] for details).
 If multiple `Job` beans are found, the job that should be executed must be specified using configprop:spring.batch.job.name[].
 
 To disable running a `Job` found in the application context, set the configprop:spring.batch.job.enabled[] to `false`.
@@ -55,8 +62,18 @@ This provides only one argument to the batch job: `someParameter=someValue`.
 
 
 
+[[howto.batch.restarting-a-failed-job]]
+=== Restarting a stopped or failed Job
+To restart a failed `Job`, all parameters (identifying and non-identifying) must be re-specified on the command line.
+Non-identifying parameters are *not* copied from the previous execution.
+This allows them to be modified or removed.
+
+NOTE: When you're using a custom `JobParametersIncrementer`, you have to gather all parameters managed by the incrementer to restart a failed execution.
+
+
+
 [[howto.batch.storing-job-repository]]
 === Storing the Job Repository
 Spring Batch requires a data store for the `Job` repository.
 If you use Spring Boot, you must use an actual database.
-Note that it can be an in-memory database, see {spring-batch-docs}job.html#configuringJobRepository[Configuring a Job Repository].
+Note that it can be an in-memory database, see {spring-batch-docs}/job.html#configuringJobRepository[Configuring a Job Repository].

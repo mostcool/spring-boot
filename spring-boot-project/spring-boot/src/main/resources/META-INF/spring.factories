@@ -57,7 +57,7 @@ org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor,\
 org.springframework.boot.env.RandomValuePropertySourceEnvironmentPostProcessor,\
 org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor,\
 org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor,\
-org.springframework.boot.reactor.DebugAgentEnvironmentPostProcessor
+org.springframework.boot.reactor.ReactorEnvironmentPostProcessor
 
 # Failure Analyzers
 org.springframework.boot.diagnostics.FailureAnalyzer=\
@@ -70,6 +70,7 @@ org.springframework.boot.diagnostics.analyzer.BeanNotOfRequiredTypeFailureAnalyz
 org.springframework.boot.diagnostics.analyzer.BindFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.BindValidationFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.UnboundConfigurationPropertyFailureAnalyzer,\
+org.springframework.boot.diagnostics.analyzer.MissingParameterNamesFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.MutuallyExclusiveConfigurationPropertiesFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.NoSuchMethodFailureAnalyzer,\
 org.springframework.boot.diagnostics.analyzer.NoUniqueBeanDefinitionFailureAnalyzer,\

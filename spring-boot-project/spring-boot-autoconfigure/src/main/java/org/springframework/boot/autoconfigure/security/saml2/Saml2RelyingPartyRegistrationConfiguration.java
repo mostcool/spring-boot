@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import org.springframework.util.StringUtils;
  * @author Phillip Webb
  * @author Moritz Halbritter
  * @author Lasse Lindqvist
+ * @author Lasse Wulff
  */
 @Configuration(proxyBeanMethods = false)
 @Conditional(RegistrationConfiguredCondition.class)
@@ -79,10 +80,10 @@ class Saml2RelyingPartyRegistrationConfiguration {
 	private RelyingPartyRegistration asRegistration(String id, Registration properties) {
 		boolean usingMetadata = StringUtils.hasText(properties.getAssertingparty().getMetadataUri());
 		Builder builder = (!usingMetadata) ? RelyingPartyRegistration.withRegistrationId(id)
-				: createBuilderUsingMetadata(id, properties.getAssertingparty()).registrationId(id);
+				: createBuilderUsingMetadata(properties.getAssertingparty()).registrationId(id);
 		builder.assertionConsumerServiceLocation(properties.getAcs().getLocation());
 		builder.assertionConsumerServiceBinding(properties.getAcs().getBinding());
-		builder.assertingPartyDetails(mapAssertingParty(properties.getAssertingparty(), usingMetadata));
+		builder.assertingPartyDetails(mapAssertingParty(properties.getAssertingparty()));
 		builder.signingX509Credentials((credentials) -> properties.getSigning()
 			.getCredentials()
 			.stream()
@@ -104,13 +105,14 @@ class Saml2RelyingPartyRegistrationConfiguration {
 		builder.singleLogoutServiceResponseLocation(properties.getSinglelogout().getResponseUrl());
 		builder.singleLogoutServiceBinding(properties.getSinglelogout().getBinding());
 		builder.entityId(properties.getEntityId());
+		builder.nameIdFormat(properties.getNameIdFormat());
 		RelyingPartyRegistration registration = builder.build();
 		boolean signRequest = registration.getAssertingPartyDetails().getWantAuthnRequestsSigned();
 		validateSigningCredentials(properties, signRequest);
 		return registration;
 	}
 
-	private RelyingPartyRegistration.Builder createBuilderUsingMetadata(String id, AssertingParty properties) {
+	private RelyingPartyRegistration.Builder createBuilderUsingMetadata(AssertingParty properties) {
 		String requiredEntityId = properties.getEntityId();
 		Collection<Builder> candidates = RelyingPartyRegistrations
 			.collectionFromMetadataLocation(properties.getMetadataUri());
@@ -128,16 +130,13 @@ class Saml2RelyingPartyRegistrationConfiguration {
 		return result[0];
 	}
 
-	private Consumer<AssertingPartyDetails.Builder> mapAssertingParty(AssertingParty assertingParty,
-			boolean usingMetadata) {
+	private Consumer<AssertingPartyDetails.Builder> mapAssertingParty(AssertingParty assertingParty) {
 		return (details) -> {
 			PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 			map.from(assertingParty::getEntityId).to(details::entityId);
 			map.from(assertingParty.getSinglesignon()::getBinding).to(details::singleSignOnServiceBinding);
 			map.from(assertingParty.getSinglesignon()::getUrl).to(details::singleSignOnServiceLocation);
-			map.from(assertingParty.getSinglesignon()::isSignRequest)
-				.when((signRequest) -> !usingMetadata)
-				.to(details::wantAuthnRequestsSigned);
+			map.from(assertingParty.getSinglesignon()::getSignRequest).to(details::wantAuthnRequestsSigned);
 			map.from(assertingParty.getSinglelogout()::getUrl).to(details::singleLogoutServiceLocation);
 			map.from(assertingParty.getSinglelogout()::getResponseUrl).to(details::singleLogoutServiceResponseLocation);
 			map.from(assertingParty.getSinglelogout()::getBinding).to(details::singleLogoutServiceBinding);

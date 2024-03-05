@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,10 @@
  */
 
 package org.springframework.boot.actuate.autoconfigure.tracing.prometheus;
+
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -33,6 +37,7 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -43,6 +48,12 @@ import static org.mockito.Mockito.mock;
  * @author Jonatan Ivanov
  */
 class PrometheusExemplarsAutoConfigurationTests {
+
+	private static final Pattern BUCKET_TRACE_INFO_PATTERN = Pattern.compile(
+			"^test_observation_seconds_bucket\\{error=\"none\",le=\".+\"} 1.0 # \\{span_id=\"(\\p{XDigit}+)\",trace_id=\"(\\p{XDigit}+)\"} .+$");
+
+	private static final Pattern COUNTER_TRACE_INFO_PATTERN = Pattern.compile(
+			"^test_observation_seconds_count\\{error=\"none\"} 1.0 # \\{span_id=\"(\\p{XDigit}+)\",trace_id=\"(\\p{XDigit}+)\"} .+$");
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withPropertyValues("management.tracing.sampling.probability=1.0",
@@ -80,14 +91,32 @@ class PrometheusExemplarsAutoConfigurationTests {
 			Observation.start("test.observation", observationRegistry).stop();
 			PrometheusMeterRegistry prometheusMeterRegistry = context.getBean(PrometheusMeterRegistry.class);
 			String openMetricsOutput = prometheusMeterRegistry.scrape(TextFormat.CONTENT_TYPE_OPENMETRICS_100);
-			assertThat(openMetricsOutput).contains("test_observation_seconds_bucket")
-				.containsOnlyOnce("trace_id=")
-				.containsOnlyOnce("span_id=");
+
+			assertThat(openMetricsOutput).contains("test_observation_seconds_bucket");
+			assertThat(openMetricsOutput).containsOnlyOnce("test_observation_seconds_count");
+			assertThat(StringUtils.countOccurrencesOf(openMetricsOutput, "span_id")).isEqualTo(2);
+			assertThat(StringUtils.countOccurrencesOf(openMetricsOutput, "trace_id")).isEqualTo(2);
+
+			Optional<TraceInfo> bucketTraceInfo = openMetricsOutput.lines()
+				.filter((line) -> line.contains("test_observation_seconds_bucket") && line.contains("span_id"))
+				.map(BUCKET_TRACE_INFO_PATTERN::matcher)
+				.flatMap(Matcher::results)
+				.map((matchResult) -> new TraceInfo(matchResult.group(2), matchResult.group(1)))
+				.findFirst();
+
+			Optional<TraceInfo> counterTraceInfo = openMetricsOutput.lines()
+				.filter((line) -> line.contains("test_observation_seconds_count") && line.contains("span_id"))
+				.map(COUNTER_TRACE_INFO_PATTERN::matcher)
+				.flatMap(Matcher::results)
+				.map((matchResult) -> new TraceInfo(matchResult.group(2), matchResult.group(1)))
+				.findFirst();
+
+			assertThat(bucketTraceInfo).isNotEmpty().contains(counterTraceInfo.orElse(null));
 		});
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	private static class CustomConfiguration {
+	private static final class CustomConfiguration {
 
 		static final SpanContextSupplier SUPPLIER = mock(SpanContextSupplier.class);
 
@@ -96,6 +125,9 @@ class PrometheusExemplarsAutoConfigurationTests {
 			return SUPPLIER;
 		}
 
+	}
+
+	private record TraceInfo(String traceId, String spanId) {
 	}
 
 }

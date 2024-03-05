@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,6 +88,8 @@ public abstract class Packager {
 
 	private Layout layout;
 
+	private LoaderImplementation loaderImplementation;
+
 	private LayoutFactory layoutFactory;
 
 	private Layers layers;
@@ -133,6 +135,14 @@ public abstract class Packager {
 	public void setLayout(Layout layout) {
 		Assert.notNull(layout, "Layout must not be null");
 		this.layout = layout;
+	}
+
+	/**
+	 * Sets the loader implementation to use.
+	 * @param loaderImplementation the loaderImplementation to set
+	 */
+	public void setLoaderImplementation(LoaderImplementation loaderImplementation) {
+		this.loaderImplementation = loaderImplementation;
 	}
 
 	/**
@@ -207,6 +217,7 @@ public abstract class Packager {
 		if (isLayered()) {
 			writeLayerIndex(writer);
 		}
+		writeSignatureFileIfNecessary(writtenLibraries, writer);
 	}
 
 	private void writeLoaderClasses(AbstractJarWriter writer) throws IOException {
@@ -215,7 +226,7 @@ public abstract class Packager {
 			customLoaderLayout.writeLoadedClasses(writer);
 		}
 		else if (layout.isExecutable()) {
-			writer.writeLoaderClasses();
+			writer.writeLoaderClasses(this.loaderImplementation);
 		}
 	}
 
@@ -251,6 +262,10 @@ public abstract class Packager {
 			this.layersIndex.add(layer, name);
 			writer.writeEntry(name, this.layersIndex::writeTo);
 		}
+	}
+
+	protected void writeSignatureFileIfNecessary(Map<String, Library> writtenLibraries, AbstractJarWriter writer)
+			throws IOException {
 	}
 
 	private EntryTransformer getEntityTransformer() {
@@ -551,7 +566,7 @@ public abstract class Packager {
 		 * An {@link UnpackHandler} that determines that an entry needs to be unpacked if
 		 * a library that requires unpacking has a matching entry name.
 		 */
-		private class PackagedLibrariesUnpackHandler implements UnpackHandler {
+		private final class PackagedLibrariesUnpackHandler implements UnpackHandler {
 
 			@Override
 			public boolean requiresUnpack(String name) {

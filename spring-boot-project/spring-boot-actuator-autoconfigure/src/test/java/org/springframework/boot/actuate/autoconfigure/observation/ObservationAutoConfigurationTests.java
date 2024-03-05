@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -198,8 +198,8 @@ class ObservationAutoConfigurationTests {
 			Observation.start("observation2", observationRegistry).stop();
 			MeterRegistry meterRegistry = context.getBean(MeterRegistry.class);
 			assertThat(meterRegistry.get("observation1").timer().count()).isOne();
-			assertThatThrownBy(() -> meterRegistry.get("observation2").timer())
-				.isInstanceOf(MeterNotFoundException.class);
+			assertThatExceptionOfType(MeterNotFoundException.class)
+				.isThrownBy(() -> meterRegistry.get("observation2").timer());
 		});
 	}
 
@@ -329,8 +329,8 @@ class ObservationAutoConfigurationTests {
 			ObservationRegistry observationRegistry = context.getBean(ObservationRegistry.class);
 			Observation.start("spring.security.filterchains", observationRegistry).stop();
 			MeterRegistry meterRegistry = context.getBean(MeterRegistry.class);
-			assertThatThrownBy(() -> meterRegistry.get("spring.security.filterchains").timer())
-				.isInstanceOf(MeterNotFoundException.class);
+			assertThatExceptionOfType(MeterNotFoundException.class)
+				.isThrownBy(() -> meterRegistry.get("spring.security.filterchains").timer());
 		});
 	}
 
@@ -561,11 +561,11 @@ class ObservationAutoConfigurationTests {
 
 	}
 
-	private static class CustomContext extends Context {
+	private static final class CustomContext extends Context {
 
 	}
 
-	private static class CalledHandlers {
+	private static final class CalledHandlers {
 
 		private final List<ObservationHandler<?>> calledHandlers = new ArrayList<>();
 

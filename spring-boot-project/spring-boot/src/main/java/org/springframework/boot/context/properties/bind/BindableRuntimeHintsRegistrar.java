@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -318,11 +318,18 @@ public class BindableRuntimeHintsRegistrar implements RuntimeHintsRegistrar {
 		 */
 		private boolean isNestedType(String propertyName, Class<?> propertyType) {
 			Class<?> declaringClass = propertyType.getDeclaringClass();
-			if (declaringClass != null && declaringClass.isAssignableFrom(this.type)) {
+			if (declaringClass != null && isNested(declaringClass, this.type)) {
 				return true;
 			}
 			Field field = ReflectionUtils.findField(this.type, propertyName);
 			return (field != null) && MergedAnnotations.from(field).isPresent(Nested.class);
+		}
+
+		private static boolean isNested(Class<?> type, Class<?> candidate) {
+			if (type.isAssignableFrom(candidate)) {
+				return true;
+			}
+			return (candidate.getDeclaringClass() != null && isNested(type, candidate.getDeclaringClass()));
 		}
 
 		private boolean isJavaType(Class<?> candidate) {
@@ -334,7 +341,7 @@ public class BindableRuntimeHintsRegistrar implements RuntimeHintsRegistrar {
 	/**
 	 * Inner class to avoid a hard dependency on Kotlin at runtime.
 	 */
-	private static class KotlinDelegate {
+	private static final class KotlinDelegate {
 
 		static void handleConstructor(ReflectionHints hints, Constructor<?> constructor) {
 			KClass<?> kClass = JvmClassMappingKt.getKotlinClass(constructor.getDeclaringClass());

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,6 +81,12 @@ public class SpringBootPlugin implements Plugin<Project> {
 	public static final String DEVELOPMENT_ONLY_CONFIGURATION_NAME = "developmentOnly";
 
 	/**
+	 * The name of the {@code testAndDevelopmentOnly} configuration.
+	 * @since 3.2.0
+	 */
+	public static final String TEST_AND_DEVELOPMENT_ONLY_CONFIGURATION_NAME = "testAndDevelopmentOnly";
+
+	/**
 	 * The name of the {@code productionRuntimeClasspath} configuration.
 	 */
 	public static final String PRODUCTION_RUNTIME_CLASSPATH_CONFIGURATION_NAME = "productionRuntimeClasspath";
@@ -117,8 +123,8 @@ public class SpringBootPlugin implements Plugin<Project> {
 
 	private void verifyGradleVersion() {
 		GradleVersion currentVersion = GradleVersion.current();
-		if (currentVersion.compareTo(GradleVersion.version("7.4")) < 0) {
-			throw new GradleException("Spring Boot plugin requires Gradle 7.x (7.4 or later). "
+		if (currentVersion.compareTo(GradleVersion.version("7.5")) < 0) {
+			throw new GradleException("Spring Boot plugin requires Gradle 7.x (7.5 or later). "
 					+ "The current version is " + currentVersion);
 		}
 	}

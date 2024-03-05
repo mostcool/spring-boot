@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -179,7 +179,7 @@ class JavaConventions {
 
 	private void configureTestRetries(Test test) {
 		TestRetryExtension testRetry = test.getExtensions().getByType(TestRetryExtension.class);
-		testRetry.getFailOnPassedAfterRetry().set(true);
+		testRetry.getFailOnPassedAfterRetry().set(false);
 		testRetry.getMaxRetries().set(isCi() ? 3 : 0);
 	}
 
@@ -239,10 +239,12 @@ class JavaConventions {
 		project.getTasks().withType(Format.class, (Format) -> Format.setEncoding("UTF-8"));
 		project.getPlugins().apply(CheckstylePlugin.class);
 		CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
-		checkstyle.setToolVersion("8.45.1");
+		checkstyle.setToolVersion("10.12.4");
 		checkstyle.getConfigDirectory().set(project.getRootProject().file("src/checkstyle"));
 		String version = SpringJavaFormatPlugin.class.getPackage().getImplementationVersion();
 		DependencySet checkstyleDependencies = project.getConfigurations().getByName("checkstyle").getDependencies();
+		checkstyleDependencies
+			.add(project.getDependencies().create("com.puppycrawl.tools:checkstyle:" + checkstyle.getToolVersion()));
 		checkstyleDependencies
 			.add(project.getDependencies().create("io.spring.javaformat:spring-javaformat-checkstyle:" + version));
 	}

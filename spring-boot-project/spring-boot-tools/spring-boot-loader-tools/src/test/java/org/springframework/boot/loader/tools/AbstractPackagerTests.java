@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ abstract class AbstractPackagerTests<P extends Packager> {
 		execute(packager, NO_LIBRARIES);
 		Manifest actualManifest = getPackagedManifest();
 		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
-			.isEqualTo("org.springframework.boot.loader.JarLauncher");
+			.isEqualTo("org.springframework.boot.loader.launch.JarLauncher");
 		assertThat(actualManifest.getMainAttributes().getValue("Start-Class")).isEqualTo("a.b.C");
 		assertThat(hasPackagedLauncherClasses()).isTrue();
 	}
@@ -121,7 +121,7 @@ abstract class AbstractPackagerTests<P extends Packager> {
 		execute(packager, NO_LIBRARIES);
 		Manifest actualManifest = getPackagedManifest();
 		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
-			.isEqualTo("org.springframework.boot.loader.JarLauncher");
+			.isEqualTo("org.springframework.boot.loader.launch.JarLauncher");
 		assertThat(actualManifest.getMainAttributes().getValue("Start-Class")).isEqualTo("a.b.C");
 		assertThat(hasPackagedLauncherClasses()).isTrue();
 	}
@@ -133,7 +133,7 @@ abstract class AbstractPackagerTests<P extends Packager> {
 		execute(packager, NO_LIBRARIES);
 		Manifest actualManifest = getPackagedManifest();
 		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
-			.isEqualTo("org.springframework.boot.loader.JarLauncher");
+			.isEqualTo("org.springframework.boot.loader.launch.JarLauncher");
 		assertThat(actualManifest.getMainAttributes().getValue("Start-Class")).isEqualTo("a.b.C");
 		assertThat(hasPackagedLauncherClasses()).isTrue();
 	}
@@ -651,7 +651,7 @@ abstract class AbstractPackagerTests<P extends Packager> {
 		expected.add("\\Q" + libraryTwo.getName() + "\\E");
 		expected.add("^/META-INF/native-image/.*");
 		assertThat(getPackagedEntryContent("META-INF/native-image/argfile"))
-			.isEqualTo(expected.stream().collect(Collectors.joining("\n")) + "\n");
+			.isEqualTo(String.join("\n", expected) + "\n");
 	}
 
 	private File createLibraryJar() throws IOException {
@@ -660,7 +660,7 @@ abstract class AbstractPackagerTests<P extends Packager> {
 		return library.getFile();
 	}
 
-	private Library newLibrary(File file, LibraryScope scope, boolean unpackRequired) {
+	protected Library newLibrary(File file, LibraryScope scope, boolean unpackRequired) {
 		return new Library(null, file, scope, null, unpackRequired, false, true);
 	}
 
@@ -684,10 +684,10 @@ abstract class AbstractPackagerTests<P extends Packager> {
 
 	protected boolean hasPackagedLauncherClasses() throws IOException {
 		return hasPackagedEntry("org/springframework/boot/")
-				&& hasPackagedEntry("org/springframework/boot/loader/JarLauncher.class");
+				&& hasPackagedEntry("org/springframework/boot/loader/launch/JarLauncher.class");
 	}
 
-	private boolean hasPackagedEntry(String name) throws IOException {
+	protected boolean hasPackagedEntry(String name) throws IOException {
 		return getPackagedEntry(name) != null;
 	}
 

@@ -16,6 +16,7 @@
 
 package org.springframework.boot;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ import java.util.function.Supplier;
 
 import jakarta.annotation.PostConstruct;
 import org.assertj.core.api.Condition;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +62,7 @@ import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.AvailabilityState;
 import org.springframework.boot.availability.LivenessState;
 import org.springframework.boot.availability.ReadinessState;
+import org.springframework.boot.builder.ParentContextApplicationContextInitializer;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.event.ApplicationContextInitializedEvent;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
@@ -97,6 +100,7 @@ import org.springframework.context.event.SmartApplicationListener;
 import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.StaticApplicationContext;
 import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.CommandLinePropertySource;
 import org.springframework.core.env.CompositePropertySource;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -158,6 +162,9 @@ import static org.mockito.Mockito.spy;
  * @author Nguyen Bao Sach
  * @author Chris Bono
  * @author Sebastien Deleuze
+ * @author Moritz Halbritter
+ * @author Tadaya Tsuyukubo
+ * @author Yanming Zhou
  */
 @ExtendWith(OutputCaptureExtension.class)
 class SpringApplicationTests {
@@ -626,6 +633,28 @@ class SpringApplicationTests {
 		assertThat(this.context).has(runTestRunnerBean("runnerA"));
 		assertThat(this.context).has(runTestRunnerBean("runnerB"));
 		assertThat(this.context).has(runTestRunnerBean("runnerC"));
+	}
+
+	@Test
+	void runCommandLineRunnersAndApplicationRunnersWithParentContext() {
+		SpringApplication application = new SpringApplication(CommandLineRunConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		application.addInitializers(new ParentContextApplicationContextInitializer(
+				new AnnotationConfigApplicationContext(CommandLineRunParentConfig.class)));
+		this.context = application.run("arg");
+		assertThat(this.context).has(runTestRunnerBean("runnerA"));
+		assertThat(this.context).has(runTestRunnerBean("runnerB"));
+		assertThat(this.context).has(runTestRunnerBean("runnerC"));
+		assertThat(this.context).doesNotHave(runTestRunnerBean("runnerP"));
+	}
+
+	@Test
+	void runCommandLineRunnersAndApplicationRunnersUsingOrderOnBeanDefinitions() {
+		SpringApplication application = new SpringApplication(BeanDefinitionOrderRunnerConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		this.context = application.run("arg");
+		BeanDefinitionOrderRunnerConfig config = this.context.getBean(BeanDefinitionOrderRunnerConfig.class);
+		assertThat(config.runners).containsExactly("runnerA", "runnerB", "runnerC");
 	}
 
 	@Test
@@ -1362,6 +1391,21 @@ class SpringApplicationTests {
 	}
 
 	@Test
+	void shouldReportFriendlyErrorIfAotInitializerNotFound() {
+		SpringApplication application = new SpringApplication(TestSpringApplication.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		application.setMainApplicationClass(TestSpringApplication.class);
+		System.setProperty(AotDetector.AOT_ENABLED, "true");
+		try {
+			assertThatIllegalStateException().isThrownBy(application::run)
+				.withMessageContaining("but AOT processing hasn't happened");
+		}
+		finally {
+			System.clearProperty(AotDetector.AOT_ENABLED);
+		}
+	}
+
+	@Test
 	void fromRunsWithAdditionalSources() {
 		assertThat(ExampleAdditionalConfig.local.get()).isNull();
 		this.context = SpringApplication.from(ExampleFromMainMethod::main)
@@ -1388,6 +1432,32 @@ class SpringApplicationTests {
 			.run()
 			.getApplicationContext();
 		assertThatNoException().isThrownBy(() -> this.context.getBean(SingleUseAdditionalConfig.class));
+	}
+
+	@Test
+	void shouldStartDaemonThreadIfKeepAliveIsEnabled() {
+		SpringApplication application = new SpringApplication(ExampleConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		this.context = application.run("--spring.main.keep-alive=true");
+		Set<Thread> threads = getCurrentThreads();
+		assertThat(threads).filteredOn((thread) -> thread.getName().equals("keep-alive"))
+			.singleElement()
+			.satisfies((thread) -> assertThat(thread.isDaemon()).isFalse());
+	}
+
+	@Test
+	void shouldStopKeepAliveThreadIfContextIsClosed() {
+		SpringApplication application = new SpringApplication(ExampleConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		application.setKeepAlive(true);
+		this.context = application.run();
+		assertThat(getCurrentThreads()).filteredOn((thread) -> thread.getName().equals("keep-alive")).isNotEmpty();
+		this.context.close();
+		Awaitility.await()
+			.atMost(Duration.ofSeconds(30))
+			.untilAsserted(
+					() -> assertThat(getCurrentThreads()).filteredOn((thread) -> thread.getName().equals("keep-alive"))
+						.isEmpty());
 	}
 
 	private <S extends AvailabilityState> ArgumentMatcher<ApplicationEvent> isAvailabilityChangeEventWithState(
@@ -1421,7 +1491,7 @@ class SpringApplicationTests {
 		};
 	}
 
-	private Condition<ConfigurableApplicationContext> runTestRunnerBean(final String name) {
+	private Condition<ConfigurableApplicationContext> runTestRunnerBean(String name) {
 		return new Condition<>("run testrunner bean") {
 
 			@Override
@@ -1430,6 +1500,10 @@ class SpringApplicationTests {
 			}
 
 		};
+	}
+
+	private Set<Thread> getCurrentThreads() {
+		return Thread.getAllStackTraces().keySet();
 	}
 
 	static class TestEventListener<E extends ApplicationEvent> implements SmartApplicationListener {
@@ -1631,17 +1705,52 @@ class SpringApplicationTests {
 
 		@Bean
 		TestCommandLineRunner runnerC() {
-			return new TestCommandLineRunner(Ordered.LOWEST_PRECEDENCE, "runnerB", "runnerA");
+			return new TestCommandLineRunner("runnerC", Ordered.LOWEST_PRECEDENCE, "runnerB", "runnerA");
 		}
 
 		@Bean
 		TestApplicationRunner runnerB() {
-			return new TestApplicationRunner(Ordered.LOWEST_PRECEDENCE - 1, "runnerA");
+			return new TestApplicationRunner("runnerB", Ordered.LOWEST_PRECEDENCE - 1, "runnerA");
 		}
 
 		@Bean
 		TestCommandLineRunner runnerA() {
-			return new TestCommandLineRunner(Ordered.HIGHEST_PRECEDENCE);
+			return new TestCommandLineRunner("runnerA", Ordered.HIGHEST_PRECEDENCE);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class CommandLineRunParentConfig {
+
+		@Bean
+		TestCommandLineRunner runnerP() {
+			return new TestCommandLineRunner("runnerP", Ordered.LOWEST_PRECEDENCE);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class BeanDefinitionOrderRunnerConfig {
+
+		private final List<String> runners = new ArrayList<>();
+
+		@Bean
+		@Order
+		CommandLineRunner runnerC() {
+			return (args) -> this.runners.add("runnerC");
+		}
+
+		@Bean
+		@Order(Ordered.LOWEST_PRECEDENCE - 1)
+		ApplicationRunner runnerB() {
+			return (args) -> this.runners.add("runnerB");
+		}
+
+		@Bean
+		@Order(Ordered.HIGHEST_PRECEDENCE)
+		CommandLineRunner runnerA() {
+			return (args) -> this.runners.add("runnerA");
 		}
 
 	}
@@ -1825,12 +1934,16 @@ class SpringApplicationTests {
 
 	static class TestCommandLineRunner extends AbstractTestRunner implements CommandLineRunner {
 
-		TestCommandLineRunner(int order, String... expectedBefore) {
+		private final String name;
+
+		TestCommandLineRunner(String name, int order, String... expectedBefore) {
 			super(order, expectedBefore);
+			this.name = name;
 		}
 
 		@Override
 		public void run(String... args) {
+			System.out.println(">>> " + this.name);
 			markAsRan();
 		}
 
@@ -1838,12 +1951,16 @@ class SpringApplicationTests {
 
 	static class TestApplicationRunner extends AbstractTestRunner implements ApplicationRunner {
 
-		TestApplicationRunner(int order, String... expectedBefore) {
+		private final String name;
+
+		TestApplicationRunner(String name, int order, String... expectedBefore) {
 			super(order, expectedBefore);
+			this.name = name;
 		}
 
 		@Override
 		public void run(ApplicationArguments args) {
+			System.out.println(">>> " + this.name);
 			markAsRan();
 		}
 

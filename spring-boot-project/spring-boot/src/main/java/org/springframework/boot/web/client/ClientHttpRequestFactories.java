@@ -39,7 +39,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
-import org.eclipse.jetty.client.dynamic.HttpClientTransportDynamic;
+import org.eclipse.jetty.client.transport.HttpClientTransportDynamic;
 import org.eclipse.jetty.io.ClientConnector;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
@@ -212,7 +212,8 @@ public final class ClientHttpRequestFactories {
 						options.getEnabledProtocols(), options.getCiphers(), new DefaultHostnameVerifier());
 				connectionManagerBuilder.setSSLSocketFactory(socketFactory);
 			}
-			PoolingHttpClientConnectionManager connectionManager = connectionManagerBuilder.build();
+			PoolingHttpClientConnectionManager connectionManager = connectionManagerBuilder.useSystemProperties()
+				.build();
 			return HttpClientBuilder.create().useSystemProperties().setConnectionManager(connectionManager).build();
 		}
 

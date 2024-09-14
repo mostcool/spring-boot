@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -198,10 +198,8 @@ public class GradleBuild {
 			if (this.expectDeprecationWarnings == null || (this.gradleVersion != null
 					&& this.expectDeprecationWarnings.compareTo(GradleVersion.version(this.gradleVersion)) > 0)) {
 				String buildOutput = result.getOutput();
-				if (this.expectedDeprecationMessages != null) {
-					for (String message : this.expectedDeprecationMessages) {
-						buildOutput = buildOutput.replaceAll(message, "");
-					}
+				for (String message : this.expectedDeprecationMessages) {
+					buildOutput = buildOutput.replaceAll(message, "");
 				}
 				assertThat(buildOutput).doesNotContainIgnoringCase("deprecated");
 			}

@@ -22,12 +22,14 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.registry.otlp.AggregationTemporality;
+import io.micrometer.registry.otlp.HistogramFlavor;
 import io.micrometer.registry.otlp.OtlpConfig;
 
 import org.springframework.boot.actuate.autoconfigure.metrics.export.properties.StepRegistryPropertiesConfigAdapter;
 import org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryProperties;
 import org.springframework.core.env.Environment;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Adapter to convert {@link OtlpProperties} to an {@link OtlpConfig}.
@@ -79,6 +81,7 @@ class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<Ot
 		Map<String, String> result = new HashMap<>((!CollectionUtils.isEmpty(resourceAttributes)) ? resourceAttributes
 				: get(OtlpProperties::getResourceAttributes, OtlpConfig.super::resourceAttributes));
 		result.computeIfAbsent("service.name", (key) -> getApplicationName());
+		result.computeIfAbsent("service.group", (key) -> getApplicationGroup());
 		return Collections.unmodifiableMap(result);
 	}
 
@@ -86,9 +89,29 @@ class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<Ot
 		return this.environment.getProperty("spring.application.name", DEFAULT_APPLICATION_NAME);
 	}
 
+	private String getApplicationGroup() {
+		String applicationGroup = this.environment.getProperty("spring.application.group");
+		return (StringUtils.hasLength(applicationGroup)) ? applicationGroup : null;
+	}
+
 	@Override
 	public Map<String, String> headers() {
 		return get(OtlpProperties::getHeaders, OtlpConfig.super::headers);
+	}
+
+	@Override
+	public HistogramFlavor histogramFlavor() {
+		return get(OtlpProperties::getHistogramFlavor, OtlpConfig.super::histogramFlavor);
+	}
+
+	@Override
+	public int maxScale() {
+		return get(OtlpProperties::getMaxScale, OtlpConfig.super::maxScale);
+	}
+
+	@Override
+	public int maxBucketCount() {
+		return get(OtlpProperties::getMaxBucketCount, OtlpConfig.super::maxBucketCount);
 	}
 
 	@Override

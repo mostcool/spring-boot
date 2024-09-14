@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.registry.otlp.AggregationTemporality;
+import io.micrometer.registry.otlp.HistogramFlavor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -86,6 +87,39 @@ class OtlpPropertiesConfigAdapterTests {
 	}
 
 	@Test
+	void whenPropertiesHistogramFlavorIsNotSetAdapterHistogramFlavorReturnsExplicitBucketHistogram() {
+		assertThat(createAdapter().histogramFlavor()).isSameAs(HistogramFlavor.EXPLICIT_BUCKET_HISTOGRAM);
+	}
+
+	@Test
+	void whenPropertiesHistogramFlavorIsSetAdapterHistogramFlavorReturnsIt() {
+		this.properties.setHistogramFlavor(HistogramFlavor.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM);
+		assertThat(createAdapter().histogramFlavor()).isSameAs(HistogramFlavor.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM);
+	}
+
+	@Test
+	void whenPropertiesMaxScaleIsNotSetAdapterMaxScaleReturns20() {
+		assertThat(createAdapter().maxScale()).isEqualTo(20);
+	}
+
+	@Test
+	void whenPropertiesMaxScaleIsSetAdapterMaxScaleReturnsIt() {
+		this.properties.setMaxScale(5);
+		assertThat(createAdapter().maxScale()).isEqualTo(5);
+	}
+
+	@Test
+	void whenPropertiesMaxBucketCountIsNotSetAdapterMaxBucketCountReturns160() {
+		assertThat(createAdapter().maxBucketCount()).isEqualTo(160);
+	}
+
+	@Test
+	void whenPropertiesMaxBucketCountIsSetAdapterMaxBucketCountReturnsIt() {
+		this.properties.setMaxBucketCount(6);
+		assertThat(createAdapter().maxBucketCount()).isEqualTo(6);
+	}
+
+	@Test
 	void whenPropertiesBaseTimeUnitIsNotSetAdapterBaseTimeUnitReturnsMillis() {
 		assertThat(createAdapter().baseTimeUnit()).isSameAs(TimeUnit.MILLISECONDS);
 	}
@@ -137,6 +171,32 @@ class OtlpPropertiesConfigAdapterTests {
 	@Test
 	void shouldUseDefaultApplicationNameIfApplicationNameIsNotSet() {
 		assertThat(createAdapter().resourceAttributes()).containsEntry("service.name", "unknown_service");
+	}
+
+	@Test
+	@SuppressWarnings("removal")
+	void serviceGroupOverridesApplicationGroup() {
+		this.environment.setProperty("spring.application.group", "alpha");
+		this.properties.setResourceAttributes(Map.of("service.group", "beta"));
+		assertThat(createAdapter().resourceAttributes()).containsEntry("service.group", "beta");
+	}
+
+	@Test
+	void serviceGroupOverridesApplicationGroupWhenUsingOtelProperties() {
+		this.environment.setProperty("spring.application.group", "alpha");
+		this.openTelemetryProperties.setResourceAttributes(Map.of("service.group", "beta"));
+		assertThat(createAdapter().resourceAttributes()).containsEntry("service.group", "beta");
+	}
+
+	@Test
+	void shouldUseApplicationGroupIfServiceGroupIsNotSet() {
+		this.environment.setProperty("spring.application.group", "alpha");
+		assertThat(createAdapter().resourceAttributes()).containsEntry("service.group", "alpha");
+	}
+
+	@Test
+	void shouldUseDefaultApplicationGroupIfApplicationGroupIsNotSet() {
+		assertThat(createAdapter().resourceAttributes()).doesNotContainKey("service.group");
 	}
 
 	private OtlpPropertiesConfigAdapter createAdapter() {

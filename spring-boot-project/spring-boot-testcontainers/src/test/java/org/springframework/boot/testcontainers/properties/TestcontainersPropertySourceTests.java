@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.boot.testcontainers.lifecycle.BeforeTestcontainerUsedEvent;
 import org.springframework.boot.testcontainers.properties.TestcontainersPropertySource.EventPublisherRegistrar;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.support.GenericApplicationContext;
@@ -145,7 +146,7 @@ class TestcontainersPropertySourceTests {
 			assertThat(applicationContext.getEnvironment().containsProperty("test")).isTrue();
 			assertThat(events.isEmpty());
 			assertThat(applicationContext.getEnvironment().getProperty("test")).isEqualTo("spring");
-			assertThat(events.stream().filter(BeforeTestcontainersPropertySuppliedEvent.class::isInstance)).hasSize(1);
+			assertThat(events.stream().filter(BeforeTestcontainerUsedEvent.class::isInstance)).hasSize(1);
 		}
 	}
 

@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Andy Wilkinson
  * @author Madhura Bhave
  * @author Scott Frederick
+ * @author Moritz Halbritter
  */
 @ExtendWith(MavenBuildExtension.class)
 class JarIntegrationTests extends AbstractArchiveIntegrationTests {
@@ -200,6 +201,48 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 	}
 
 	@TestTemplate
+	void whenAnEntryIsExcludedWithPropertyItDoesNotAppearInTheRepackagedJar(MavenBuild mavenBuild) {
+		mavenBuild.project("jar")
+			.systemProperty("spring-boot.excludes", "jakarta.servlet:jakarta.servlet-api")
+			.goals("install")
+			.execute((project) -> {
+				File repackaged = new File(project, "target/jar-0.0.1.BUILD-SNAPSHOT.jar");
+				assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/spring-context")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/spring-core")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/spring-jcl")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/jakarta.servlet-api-");
+			});
+	}
+
+	@TestTemplate
+	void whenAnEntryIsIncludedOnlyIncludedEntriesAppearInTheRepackagedJar(MavenBuild mavenBuild) {
+		mavenBuild.project("jar-include-entry").goals("install").execute((project) -> {
+			File repackaged = new File(project, "target/jar-include-entry-0.0.1.BUILD-SNAPSHOT.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+				.hasEntryWithNameStartingWith("BOOT-INF/lib/jakarta.servlet-api-")
+				.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-context")
+				.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-core")
+				.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-jcl");
+		});
+	}
+
+	@TestTemplate
+	void whenAnIncludeIsSpecifiedAsAPropertyOnlyIncludedEntriesAppearInTheRepackagedJar(MavenBuild mavenBuild) {
+		mavenBuild.project("jar")
+			.systemProperty("spring-boot.includes", "jakarta.servlet:jakarta.servlet-api")
+			.goals("install")
+			.execute((project) -> {
+				File repackaged = new File(project, "target/jar-0.0.1.BUILD-SNAPSHOT.jar");
+				assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+					.hasEntryWithNameStartingWith("BOOT-INF/lib/jakarta.servlet-api-")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-context")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-core")
+					.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/spring-jcl");
+			});
+	}
+
+	@TestTemplate
 	void whenAGroupIsExcludedNoEntriesInThatGroupAppearInTheRepackagedJar(MavenBuild mavenBuild) {
 		mavenBuild.project("jar-exclude-group").goals("install").execute((project) -> {
 			File repackaged = new File(project, "target/jar-exclude-group-0.0.1.BUILD-SNAPSHOT.jar");
@@ -337,8 +380,7 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
-				.hasEntryWithNameStartingWith(
-						"BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getCoordinates().getArtifactId());
+				.hasEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.TOOLS.getCoordinates().getArtifactId());
 			try (JarFile jarFile = new JarFile(repackaged)) {
 				Map<String, List<String>> layerIndex = readLayerIndex(jarFile);
 				assertThat(layerIndex.keySet()).containsExactly("dependencies", "spring-boot-loader",
@@ -361,8 +403,8 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
-				.doesNotHaveEntryWithName("BOOT-INF/layers.idx")
-				.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getName());
+				.hasEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.TOOLS.getCoordinates().getArtifactId())
+				.doesNotHaveEntryWithName("BOOT-INF/layers.idx");
 		});
 	}
 
@@ -374,7 +416,20 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
 				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
 				.hasEntryWithNameStartingWith("BOOT-INF/layers.idx")
-				.doesNotHaveEntryWithNameStartingWith("BOOT-INF/lib/" + JarModeLibrary.LAYER_TOOLS.getName());
+				.doesNotHaveEntryWithNameStartingWith(
+						"BOOT-INF/lib/" + JarModeLibrary.TOOLS.getCoordinates().getArtifactId());
+		});
+	}
+
+	@TestTemplate
+	void whenJarIsRepackagedWithToolsExclude(MavenBuild mavenBuild) {
+		mavenBuild.project("jar-no-tools").execute((project) -> {
+			File repackaged = new File(project, "jar/target/jar-no-tools-0.0.1.BUILD-SNAPSHOT.jar");
+			assertThat(jar(repackaged)).hasEntryWithNameStartingWith("BOOT-INF/classes/")
+				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-release")
+				.hasEntryWithNameStartingWith("BOOT-INF/lib/jar-snapshot")
+				.doesNotHaveEntryWithNameStartingWith(
+						"BOOT-INF/lib/" + JarModeLibrary.TOOLS.getCoordinates().getArtifactId());
 		});
 	}
 
@@ -451,7 +506,8 @@ class JarIntegrationTests extends AbstractArchiveIntegrationTests {
 			File repackaged = new File(project, "target/jar-output-timestamp-0.0.1.BUILD-SNAPSHOT.jar");
 			List<String> sortedLibs = Arrays.asList("BOOT-INF/lib/jakarta.servlet-api",
 					"BOOT-INF/lib/micrometer-commons", "BOOT-INF/lib/micrometer-observation", "BOOT-INF/lib/spring-aop",
-					"BOOT-INF/lib/spring-beans", "BOOT-INF/lib/spring-boot-jarmode-layertools",
+					"BOOT-INF/lib/spring-beans",
+					"BOOT-INF/lib/" + JarModeLibrary.TOOLS.getCoordinates().getArtifactId(),
 					"BOOT-INF/lib/spring-context", "BOOT-INF/lib/spring-core", "BOOT-INF/lib/spring-expression",
 					"BOOT-INF/lib/spring-jcl");
 			assertThat(jar(repackaged)).entryNamesInPath("BOOT-INF/lib/")

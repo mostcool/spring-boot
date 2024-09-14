@@ -298,6 +298,24 @@ public class UndertowWebServer implements WebServer {
 		return ports.get(0).getNumber();
 	}
 
+	/**
+	 * Returns the {@link Undertow Undertow server}. Returns {@code null} until the server
+	 * has been started.
+	 * @return the Undertow server or {@code null} if the server hasn't been started yet
+	 * @since 3.3.0
+	 */
+	public Undertow getUndertow() {
+		return this.undertow;
+	}
+
+	/**
+	 * Initiates a graceful shutdown of the Undertow web server. Handling of new requests
+	 * is prevented and the given {@code callback} is invoked at the end of the attempt.
+	 * The attempt can be explicitly ended by invoking {@link #stop}.
+	 * <p>
+	 * Once shutdown has been initiated Undertow will return an {@code HTTP 503} response
+	 * for any new or existing connections.
+	 */
 	@Override
 	public void shutDownGracefully(GracefulShutdownCallback callback) {
 		if (this.gracefulShutdown == null) {

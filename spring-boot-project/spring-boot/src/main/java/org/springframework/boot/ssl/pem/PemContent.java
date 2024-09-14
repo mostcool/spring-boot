@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package org.springframework.boot.ssl.pem;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,9 +28,11 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import org.springframework.boot.io.ApplicationResourceLoader;
+import org.springframework.core.io.Resource;
 import org.springframework.util.Assert;
-import org.springframework.util.ResourceUtils;
 import org.springframework.util.StreamUtils;
 
 /**
@@ -51,7 +52,7 @@ public final class PemContent {
 	private final String text;
 
 	private PemContent(String text) {
-		this.text = text;
+		this.text = text.lines().map(String::trim).collect(Collectors.joining("\n"));
 	}
 
 	/**
@@ -119,7 +120,8 @@ public final class PemContent {
 			return new PemContent(content);
 		}
 		try {
-			return load(ResourceUtils.getURL(content));
+			Resource resource = new ApplicationResourceLoader().getResource(content);
+			return load(resource.getInputStream());
 		}
 		catch (IOException | UncheckedIOException ex) {
 			throw new IOException("Error reading certificate or key from file '%s'".formatted(content), ex);
@@ -139,14 +141,13 @@ public final class PemContent {
 		}
 	}
 
-	private static PemContent load(URL url) throws IOException {
-		Assert.notNull(url, "Url must not be null");
-		try (InputStream in = url.openStream()) {
-			return load(in);
-		}
-	}
-
-	private static PemContent load(InputStream in) throws IOException {
+	/**
+	 * Load {@link PemContent} from the given {@link InputStream}.
+	 * @param in an input stream to load the content from
+	 * @return the loaded PEM content
+	 * @throws IOException on IO error
+	 */
+	public static PemContent load(InputStream in) throws IOException {
 		return of(StreamUtils.copyToString(in, StandardCharsets.UTF_8));
 	}
 

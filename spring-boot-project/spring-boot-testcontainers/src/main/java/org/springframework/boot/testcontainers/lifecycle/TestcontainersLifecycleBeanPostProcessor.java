@@ -29,6 +29,7 @@ import org.apache.commons.logging.LogFactory;
 import org.testcontainers.containers.ContainerState;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.lifecycle.Startable;
+import org.testcontainers.utility.TestcontainersConfiguration;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
@@ -38,7 +39,6 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.config.DestructionAwareBeanPostProcessor;
-import org.springframework.boot.testcontainers.properties.BeforeTestcontainersPropertySuppliedEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -55,11 +55,12 @@ import org.springframework.core.log.LogMessage;
  *
  * @author Phillip Webb
  * @author Stephane Nicoll
+ * @author Scott Frederick
  * @see TestcontainersLifecycleApplicationContextInitializer
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
 class TestcontainersLifecycleBeanPostProcessor
-		implements DestructionAwareBeanPostProcessor, ApplicationListener<BeforeTestcontainersPropertySuppliedEvent> {
+		implements DestructionAwareBeanPostProcessor, ApplicationListener<BeforeTestcontainerUsedEvent> {
 
 	private static final Log logger = LogFactory.getLog(TestcontainersLifecycleBeanPostProcessor.class);
 
@@ -78,13 +79,13 @@ class TestcontainersLifecycleBeanPostProcessor
 	}
 
 	@Override
-	public void onApplicationEvent(BeforeTestcontainersPropertySuppliedEvent event) {
+	public void onApplicationEvent(BeforeTestcontainerUsedEvent event) {
 		initializeContainers();
 	}
 
 	@Override
 	public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-		if (this.beanFactory.isConfigurationFrozen()) {
+		if (this.beanFactory.isConfigurationFrozen() && !isAotProcessingInProgress()) {
 			initializeContainers();
 		}
 		if (bean instanceof Startable startableBean) {
@@ -99,10 +100,13 @@ class TestcontainersLifecycleBeanPostProcessor
 		return bean;
 	}
 
+	private boolean isAotProcessingInProgress() {
+		return Boolean.getBoolean("spring.aot.processing");
+	}
+
 	private void initializeStartables(Startable startableBean, String startableBeanName) {
 		logger.trace(LogMessage.format("Initializing startables"));
-		List<String> beanNames = new ArrayList<>(
-				List.of(this.beanFactory.getBeanNamesForType(Startable.class, false, false)));
+		List<String> beanNames = new ArrayList<>(getBeanNames(Startable.class));
 		beanNames.remove(startableBeanName);
 		List<Object> beans = getBeans(beanNames);
 		if (beans == null) {
@@ -131,7 +135,7 @@ class TestcontainersLifecycleBeanPostProcessor
 	private void initializeContainers() {
 		if (this.containersInitialized.compareAndSet(false, true)) {
 			logger.trace("Initializing containers");
-			List<String> beanNames = List.of(this.beanFactory.getBeanNamesForType(ContainerState.class, false, false));
+			List<String> beanNames = getBeanNames(ContainerState.class);
 			List<Object> beans = getBeans(beanNames);
 			if (beans != null) {
 				logger.trace(LogMessage.format("Initialized containers %s", beanNames));
@@ -141,6 +145,10 @@ class TestcontainersLifecycleBeanPostProcessor
 				this.containersInitialized.set(false);
 			}
 		}
+	}
+
+	private List<String> getBeanNames(Class<?> type) {
+		return List.of(this.beanFactory.getBeanNamesForType(type, true, false));
 	}
 
 	private List<Object> getBeans(List<String> beanNames) {
@@ -183,7 +191,8 @@ class TestcontainersLifecycleBeanPostProcessor
 	}
 
 	private boolean isReusedContainer(Object bean) {
-		return (bean instanceof GenericContainer<?> container) && container.isShouldBeReused();
+		return (bean instanceof GenericContainer<?> container) && container.isShouldBeReused()
+				&& TestcontainersConfiguration.getInstance().environmentSupportsReuse();
 	}
 
 	enum Startables {

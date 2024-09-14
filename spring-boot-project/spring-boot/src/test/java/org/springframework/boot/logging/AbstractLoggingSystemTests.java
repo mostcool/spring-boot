@@ -17,6 +17,8 @@
 package org.springframework.boot.logging;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -25,8 +27,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.MDC;
 
-import org.springframework.boot.ansi.AnsiOutput;
-import org.springframework.boot.ansi.AnsiOutput.Enabled;
 import org.springframework.util.StringUtils;
 
 import static org.assertj.core.api.Assertions.contentOf;
@@ -44,37 +44,18 @@ public abstract class AbstractLoggingSystemTests {
 
 	private String originalTempDirectory;
 
-	private AnsiOutput.Enabled ansiOutputEnabled;
-
 	@BeforeEach
-	void beforeEach(@TempDir Path temp) {
-		disableAnsiOutput();
-		configureTempDir(temp);
-	}
-
-	private void disableAnsiOutput() {
-		this.ansiOutputEnabled = AnsiOutput.getEnabled();
-		AnsiOutput.setEnabled(Enabled.NEVER);
-	}
-
-	private void configureTempDir(@TempDir Path temp) {
+	void configureTempDir(@TempDir Path temp) throws IOException {
 		this.originalTempDirectory = System.getProperty(JAVA_IO_TMPDIR);
+		Files.delete(Files.createTempFile("prevent", "pollution"));
+		File.createTempFile("prevent", "pollution").delete();
 		System.setProperty(JAVA_IO_TMPDIR, temp.toAbsolutePath().toString());
 		MDC.clear();
 	}
 
 	@AfterEach
-	void afterEach() {
-		reinstateTempDir();
-		restoreAnsiOutputEnabled();
-	}
-
-	private void reinstateTempDir() {
+	void reinstateTempDir() {
 		System.setProperty(JAVA_IO_TMPDIR, this.originalTempDirectory);
-	}
-
-	private void restoreAnsiOutputEnabled() {
-		AnsiOutput.setEnabled(this.ansiOutputEnabled);
 	}
 
 	@AfterEach

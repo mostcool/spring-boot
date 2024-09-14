@@ -34,11 +34,13 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,7 @@ import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
 import jakarta.servlet.GenericServlet;
+import jakarta.servlet.ServletConfig;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
@@ -171,6 +174,7 @@ import static org.mockito.Mockito.times;
  * @author Andy Wilkinson
  * @author Raja Kolli
  * @author Scott Frederick
+ * @author Moritz Halbritter
  */
 @ExtendWith(OutputCaptureExtension.class)
 @DirtiesUrlFactories
@@ -924,6 +928,23 @@ public abstract class AbstractServletWebServerFactoryTests {
 	}
 
 	@Test
+	void cookieSameSiteSuppliersShouldNotAffectSessionCookie() throws IOException, URISyntaxException {
+		AbstractServletWebServerFactory factory = getFactory();
+		factory.getSession().getCookie().setSameSite(SameSite.LAX);
+		factory.getSession().getCookie().setName("SESSIONCOOKIE");
+		factory.addCookieSameSiteSuppliers(CookieSameSiteSupplier.ofStrict());
+		factory.addInitializers(new ServletRegistrationBean<>(new CookieServlet(false), "/"));
+		this.webServer = factory.getWebServer();
+		this.webServer.start();
+		ClientHttpResponse clientResponse = getClientResponse(getLocalUrl("/"));
+		assertThat(clientResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+		List<String> setCookieHeaders = clientResponse.getHeaders().get("Set-Cookie");
+		assertThat(setCookieHeaders).satisfiesExactlyInAnyOrder(
+				(header) -> assertThat(header).contains("SESSIONCOOKIE").contains("SameSite=Lax"),
+				(header) -> assertThat(header).contains("test=test").contains("SameSite=Strict"));
+	}
+
+	@Test
 	protected void sslSessionTracking() {
 		AbstractServletWebServerFactory factory = getFactory();
 		Ssl ssl = new Ssl();
@@ -993,6 +1014,23 @@ public abstract class AbstractServletWebServerFactoryTests {
 	}
 
 	@Test
+	void additionalMimeMappingsCanBeConfigured() {
+		AbstractServletWebServerFactory factory = getFactory();
+		MimeMappings additionalMimeMappings = new MimeMappings();
+		additionalMimeMappings.add("a", "alpha");
+		additionalMimeMappings.add("b", "bravo");
+		factory.addMimeMappings(additionalMimeMappings);
+		this.webServer = factory.getWebServer();
+		Collection<MimeMappings.Mapping> configuredMimeMappings = getActualMimeMappings().entrySet()
+			.stream()
+			.map((entry) -> new MimeMappings.Mapping(entry.getKey(), entry.getValue()))
+			.toList();
+		List<MimeMappings.Mapping> expectedMimeMappings = new ArrayList<>(MimeMappings.DEFAULT.getAll());
+		expectedMimeMappings.addAll(additionalMimeMappings.getAll());
+		assertThat(configuredMimeMappings).containsExactlyInAnyOrderElementsOf(expectedMimeMappings);
+	}
+
+	@Test
 	void rootServletContextResource() {
 		AbstractServletWebServerFactory factory = getFactory();
 		final AtomicReference<URL> rootResource = new AtomicReference<>();
@@ -1040,7 +1078,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 	}
 
 	@Test
-	void portClashOfSecondaryConnectorResultsInPortInUseException() throws Exception {
+	protected void portClashOfSecondaryConnectorResultsInPortInUseException() throws Exception {
 		doWithBlockedPort((port) -> {
 			assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> {
 				AbstractServletWebServerFactory factory = getFactory();
@@ -1328,6 +1366,26 @@ public abstract class AbstractServletWebServerFactoryTests {
 		this.webServer.start();
 		assertThat(startedLogMessage()).matches("(Jetty|Tomcat|Undertow) started on ports " + this.webServer.getPort()
 				+ " \\(http(/1.1)?\\), [0-9]+ \\(http(/1.1)?\\) with context path '/'");
+	}
+
+	@Test
+	void servletComponentsAreInitializedWithTheSameThreadContextClassLoader() {
+		AbstractServletWebServerFactory factory = getFactory();
+		ThreadContextClassLoaderCapturingServlet servlet = new ThreadContextClassLoaderCapturingServlet();
+		ThreadContextClassLoaderCapturingFilter filter = new ThreadContextClassLoaderCapturingFilter();
+		ThreadContextClassLoaderCapturingListener listener = new ThreadContextClassLoaderCapturingListener();
+		this.webServer = factory.getWebServer((context) -> {
+			context.addServlet("tcclCapturingServlet", servlet).setLoadOnStartup(0);
+			context.addFilter("tcclCapturingFilter", filter);
+			context.addListener(listener);
+		});
+		this.webServer.start();
+		assertThat(servlet.contextClassLoader).isNotNull();
+		assertThat(filter.contextClassLoader).isNotNull();
+		assertThat(listener.contextClassLoader).isNotNull();
+		assertThat(new HashSet<>(
+				Arrays.asList(servlet.contextClassLoader, filter.contextClassLoader, listener.contextClassLoader)))
+			.hasSize(1);
 	}
 
 	protected Future<Object> initiateGetRequest(int port, String path) {
@@ -1762,7 +1820,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 		}
 
 		@Override
-		protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		protected void doGet(HttpServletRequest req, HttpServletResponse resp) {
 			req.getSession(true);
 			resp.addCookie(new Cookie("test", "test"));
 			if (this.addSupplierTestCookies) {
@@ -1782,6 +1840,45 @@ public abstract class AbstractServletWebServerFactoryTests {
 		@Override
 		public boolean isTrusted(X509Certificate[] chain, String authType) {
 			return chain.length == 1;
+		}
+
+	}
+
+	static class ThreadContextClassLoaderCapturingServlet extends HttpServlet {
+
+		private ClassLoader contextClassLoader;
+
+		@Override
+		public void init(ServletConfig config) throws ServletException {
+			this.contextClassLoader = Thread.currentThread().getContextClassLoader();
+		}
+
+	}
+
+	static class ThreadContextClassLoaderCapturingListener implements ServletContextListener {
+
+		private ClassLoader contextClassLoader;
+
+		@Override
+		public void contextInitialized(ServletContextEvent sce) {
+			this.contextClassLoader = Thread.currentThread().getContextClassLoader();
+		}
+
+	}
+
+	static class ThreadContextClassLoaderCapturingFilter implements Filter {
+
+		private ClassLoader contextClassLoader;
+
+		@Override
+		public void init(FilterConfig filterConfig) throws ServletException {
+			this.contextClassLoader = Thread.currentThread().getContextClassLoader();
+		}
+
+		@Override
+		public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+				throws IOException, ServletException {
+			chain.doFilter(request, response);
 		}
 
 	}

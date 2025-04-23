@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -482,7 +482,7 @@ class BootBuildImageIntegrationTests {
 		writeLongNameResource();
 		BuildResult result = this.gradleBuild.buildAndFail("bootBuildImage", "--imageName=example/Invalid-Image-Name");
 		assertThat(result.task(":bootBuildImage").getOutcome()).isEqualTo(TaskOutcome.FAILED);
-		assertThat(result.getOutput()).containsPattern("Unable to parse image reference")
+		assertThat(result.getOutput()).containsPattern("must be an image reference")
 			.containsPattern("example/Invalid-Image-Name");
 	}
 
@@ -501,7 +501,7 @@ class BootBuildImageIntegrationTests {
 		writeLongNameResource();
 		BuildResult result = this.gradleBuild.buildAndFail("bootBuildImage");
 		assertThat(result.task(":bootBuildImage").getOutcome()).isEqualTo(TaskOutcome.FAILED);
-		assertThat(result.getOutput()).containsPattern("Unable to parse image reference")
+		assertThat(result.getOutput()).containsPattern("must be an image reference")
 			.containsPattern("example/Invalid-Tag-Name");
 	}
 
@@ -511,6 +511,14 @@ class BootBuildImageIntegrationTests {
 		writeLongNameResource();
 		BuildResult result = this.gradleBuild.buildAndFail("bootBuildImage");
 		assertThat(result.getOutput()).containsPattern("Each image building cache can be configured only once");
+	}
+
+	@TestTemplate
+	void failsWithIncompatiblePlatform() throws IOException {
+		writeMainClass();
+		BuildResult result = this.gradleBuild.buildAndFail("bootBuildImage");
+		assertThat(result.getOutput()).contains(
+				"Image platform mismatch detected. The configured platform 'linux/arm64' is not supported by the image 'ghcr.io/spring-io/spring-boot-cnb-test-builder:0.0.3-amd64'. Requested platform 'linux/arm64' but got 'linux/amd64'");
 	}
 
 	private void writeMainClass() throws IOException {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,13 +25,16 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import org.springframework.boot.buildpack.platform.build.Builder.BuildLogAdapter;
 import org.springframework.boot.buildpack.platform.docker.DockerApi;
 import org.springframework.boot.buildpack.platform.docker.DockerApi.ContainerApi;
 import org.springframework.boot.buildpack.platform.docker.DockerApi.ImageApi;
 import org.springframework.boot.buildpack.platform.docker.DockerApi.VolumeApi;
+import org.springframework.boot.buildpack.platform.docker.DockerLog;
 import org.springframework.boot.buildpack.platform.docker.TotalProgressPullListener;
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerConfiguration;
 import org.springframework.boot.buildpack.platform.docker.transport.DockerEngineException;
+import org.springframework.boot.buildpack.platform.docker.type.Binding;
 import org.springframework.boot.buildpack.platform.docker.type.ContainerReference;
 import org.springframework.boot.buildpack.platform.docker.type.ContainerStatus;
 import org.springframework.boot.buildpack.platform.docker.type.Image;
@@ -44,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -65,20 +69,37 @@ class BuilderTests {
 	@Test
 	void createWhenLogIsNullThrowsException() {
 		assertThatIllegalArgumentException().isThrownBy(() -> new Builder((BuildLog) null))
-			.withMessage("Log must not be null");
+			.withMessage("'log' must not be null");
 	}
 
 	@Test
 	void createWithDockerConfiguration() {
+		assertThatNoException().isThrownBy(() -> new Builder(BuildLog.toSystemOut()));
+	}
+
+	@Test
+	void createDockerApiWithLogDockerLogDelegate() {
 		Builder builder = new Builder(BuildLog.toSystemOut());
-		assertThat(builder).isNotNull();
+		assertThat(builder).extracting("docker")
+			.extracting("system")
+			.extracting("log")
+			.isInstanceOf(BuildLogAdapter.class);
+	}
+
+	@Test
+	void createDockerApiWithLogDockerSystemOutDelegate() {
+		Builder builder = new Builder(mock(BuildLog.class));
+		assertThat(builder).extracting("docker")
+			.extracting("system")
+			.extracting("log")
+			.isInstanceOf(DockerLog.toSystemOut().getClass());
 	}
 
 	@Test
 	void buildWhenRequestIsNullThrowsException() {
 		Builder builder = new Builder();
 		assertThatIllegalArgumentException().isThrownBy(() -> builder.build(null))
-			.withMessage("Request must not be null");
+			.withMessage("'request' must not be null");
 	}
 
 	@Test
@@ -516,9 +537,29 @@ class BuilderTests {
 		Builder builder = new Builder(BuildLog.to(out), docker, null);
 		BuildpackReference reference = BuildpackReference.of("urn:cnb:builder:example/buildpack@1.2.3");
 		BuildRequest request = getTestRequest().withBuildpacks(reference);
-		assertThatIllegalArgumentException().isThrownBy(() -> builder.build(request))
+		assertThatIllegalStateException().isThrownBy(() -> builder.build(request))
 			.withMessageContaining("'urn:cnb:builder:example/buildpack@1.2.3'")
 			.withMessageContaining("not found in builder");
+	}
+
+	@Test
+	void logsWarningIfBindingWithSensitiveTargetIsDetected() throws IOException {
+		TestPrintStream out = new TestPrintStream();
+		DockerApi docker = mockDockerApi();
+		Image builderImage = loadImage("image.json");
+		Image runImage = loadImage("run-image.json");
+		given(docker.image()
+			.pull(eq(ImageReference.of(BuildRequest.DEFAULT_BUILDER_IMAGE_REF)), isNull(), any(), isNull()))
+			.willAnswer(withPulledImage(builderImage));
+		given(docker.image()
+			.pull(eq(ImageReference.of("docker.io/cloudfoundry/run:base-cnb")), eq(ImagePlatform.from(builderImage)),
+					any(), isNull()))
+			.willAnswer(withPulledImage(runImage));
+		Builder builder = new Builder(BuildLog.to(out), docker, null);
+		BuildRequest request = getTestRequest().withBindings(Binding.from("/host", "/cnb"));
+		builder.build(request);
+		assertThat(out.toString()).contains(
+				"Warning: Binding '/host:/cnb' uses a container path which is used by buildpacks while building. Binding to it can cause problems!");
 	}
 
 	private DockerApi mockDockerApi() throws IOException {

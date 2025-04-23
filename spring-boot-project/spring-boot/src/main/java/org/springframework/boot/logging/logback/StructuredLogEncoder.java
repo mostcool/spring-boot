@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,10 +24,13 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.encoder.Encoder;
 import ch.qos.logback.core.encoder.EncoderBase;
 
+import org.springframework.boot.logging.StackTracePrinter;
 import org.springframework.boot.logging.structured.CommonStructuredLogFormat;
+import org.springframework.boot.logging.structured.ContextPairs;
 import org.springframework.boot.logging.structured.StructuredLogFormatter;
 import org.springframework.boot.logging.structured.StructuredLogFormatterFactory;
 import org.springframework.boot.logging.structured.StructuredLogFormatterFactory.CommonFormatters;
+import org.springframework.boot.logging.structured.StructuredLoggingJsonMembersCustomizer;
 import org.springframework.boot.util.Instantiator;
 import org.springframework.boot.util.Instantiator.AvailableParameters;
 import org.springframework.core.env.Environment;
@@ -85,24 +88,36 @@ public class StructuredLogEncoder extends EncoderBase<ILoggingEvent> {
 		commonFormatters.add(CommonStructuredLogFormat.LOGSTASH, this::createLogstashFormatter);
 	}
 
-	private StructuredLogFormatter<ILoggingEvent> createEcsFormatter(
-			Instantiator<StructuredLogFormatter<ILoggingEvent>> instantiator) {
+	private StructuredLogFormatter<ILoggingEvent> createEcsFormatter(Instantiator<?> instantiator) {
 		Environment environment = instantiator.getArg(Environment.class);
+		StackTracePrinter stackTracePrinter = instantiator.getArg(StackTracePrinter.class);
+		ContextPairs contextParis = instantiator.getArg(ContextPairs.class);
 		ThrowableProxyConverter throwableProxyConverter = instantiator.getArg(ThrowableProxyConverter.class);
-		return new ElasticCommonSchemaStructuredLogFormatter(environment, throwableProxyConverter);
+		StructuredLoggingJsonMembersCustomizer<?> jsonMembersCustomizer = instantiator
+			.getArg(StructuredLoggingJsonMembersCustomizer.class);
+		return new ElasticCommonSchemaStructuredLogFormatter(environment, stackTracePrinter, contextParis,
+				throwableProxyConverter, jsonMembersCustomizer);
 	}
 
-	private StructuredLogFormatter<ILoggingEvent> createGraylogFormatter(
-			Instantiator<StructuredLogFormatter<ILoggingEvent>> instantiator) {
+	private StructuredLogFormatter<ILoggingEvent> createGraylogFormatter(Instantiator<?> instantiator) {
 		Environment environment = instantiator.getArg(Environment.class);
+		StackTracePrinter stackTracePrinter = instantiator.getArg(StackTracePrinter.class);
+		ContextPairs contextParis = instantiator.getArg(ContextPairs.class);
 		ThrowableProxyConverter throwableProxyConverter = instantiator.getArg(ThrowableProxyConverter.class);
-		return new GraylogExtendedLogFormatStructuredLogFormatter(environment, throwableProxyConverter);
+		StructuredLoggingJsonMembersCustomizer<?> jsonMembersCustomizer = instantiator
+			.getArg(StructuredLoggingJsonMembersCustomizer.class);
+		return new GraylogExtendedLogFormatStructuredLogFormatter(environment, stackTracePrinter, contextParis,
+				throwableProxyConverter, jsonMembersCustomizer);
 	}
 
-	private StructuredLogFormatter<ILoggingEvent> createLogstashFormatter(
-			Instantiator<StructuredLogFormatter<ILoggingEvent>> instantiator) {
+	private StructuredLogFormatter<ILoggingEvent> createLogstashFormatter(Instantiator<?> instantiator) {
+		StackTracePrinter stackTracePrinter = instantiator.getArg(StackTracePrinter.class);
+		ContextPairs contextParis = instantiator.getArg(ContextPairs.class);
 		ThrowableProxyConverter throwableProxyConverter = instantiator.getArg(ThrowableProxyConverter.class);
-		return new LogstashStructuredLogFormatter(throwableProxyConverter);
+		StructuredLoggingJsonMembersCustomizer<?> jsonMembersCustomizer = instantiator
+			.getArg(StructuredLoggingJsonMembersCustomizer.class);
+		return new LogstashStructuredLogFormatter(stackTracePrinter, contextParis, throwableProxyConverter,
+				jsonMembersCustomizer);
 	}
 
 	@Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,10 +43,10 @@ import org.springframework.boot.actuate.info.InfoPropertiesInfoContributor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnCloudPlatform;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.cloud.CloudPlatform;
@@ -62,7 +62,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.WebSecurityConfigurer;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -77,7 +77,7 @@ import org.springframework.web.servlet.DispatcherServlet;
  */
 @AutoConfiguration(after = { ServletManagementContextAutoConfiguration.class, HealthEndpointAutoConfiguration.class,
 		InfoEndpointAutoConfiguration.class })
-@ConditionalOnProperty(prefix = "management.cloudfoundry", name = "enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "management.cloudfoundry.enabled", matchIfMissing = true)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass(DispatcherServlet.class)
 @ConditionalOnBean(DispatcherServlet.class)
@@ -117,7 +117,8 @@ public class CloudFoundryActuatorAutoConfiguration {
 			org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier controllerEndpointsSupplier,
 			ApplicationContext applicationContext) {
 		CloudFoundryWebEndpointDiscoverer discoverer = new CloudFoundryWebEndpointDiscoverer(applicationContext,
-				parameterMapper, endpointMediaTypes, null, Collections.emptyList(), Collections.emptyList());
+				parameterMapper, endpointMediaTypes, null, Collections.emptyList(), Collections.emptyList(),
+				Collections.emptyList());
 		CloudFoundrySecurityInterceptor securityInterceptor = getSecurityInterceptor(restTemplateBuilder,
 				applicationContext.getEnvironment());
 		Collection<ExposableWebEndpoint> webEndpoints = discoverer.getEndpoints();
@@ -184,12 +185,15 @@ public class CloudFoundryActuatorAutoConfiguration {
 
 		@Override
 		public void customize(WebSecurity web) {
-			List<RequestMatcher> requestMatchers = new ArrayList<>();
-			this.pathMappedEndpoints.getAllPaths()
-				.forEach((path) -> requestMatchers.add(new AntPathRequestMatcher(path + "/**")));
-			requestMatchers.add(new AntPathRequestMatcher(BASE_PATH));
-			requestMatchers.add(new AntPathRequestMatcher(BASE_PATH + "/"));
-			web.ignoring().requestMatchers(new OrRequestMatcher(requestMatchers));
+			List<RequestMatcher> matchers = new ArrayList<>();
+			this.pathMappedEndpoints.getAllPaths().forEach((path) -> matchers.add(pathMatcher(path + "/**")));
+			matchers.add(pathMatcher(BASE_PATH));
+			matchers.add(pathMatcher(BASE_PATH + "/"));
+			web.ignoring().requestMatchers(new OrRequestMatcher(matchers));
+		}
+
+		private PathPatternRequestMatcher pathMatcher(String path) {
+			return PathPatternRequestMatcher.withDefaults().matcher(path);
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,10 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.aop.scope.ScopedProxyFactoryBean;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-import org.springframework.beans.factory.support.GenericBeanDefinition;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.context.properties.bind.BindMethod;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Scope;
@@ -60,7 +61,7 @@ class ConfigurationPropertiesBeanRegistrarTests {
 	@Test
 	void registerWhenAlreadyContainsNameDoesNotReplace() {
 		String beanName = "beancp-" + BeanConfigurationProperties.class.getName();
-		this.registry.registerBeanDefinition(beanName, new GenericBeanDefinition());
+		this.registry.registerBeanDefinition(beanName, new RootBeanDefinition());
 		this.registrar.register(BeanConfigurationProperties.class);
 		BeanDefinition definition = this.registry.getBeanDefinition(beanName);
 		assertThat(definition).isNotNull();
@@ -140,24 +141,24 @@ class ConfigurationPropertiesBeanRegistrarTests {
 		};
 	}
 
-	@ConfigurationProperties(prefix = "beancp")
+	@ConfigurationProperties("beancp")
 	static class BeanConfigurationProperties {
 
 	}
 
-	@ConfigurationProperties(prefix = "beancp")
-	@Scope(BeanDefinition.SCOPE_PROTOTYPE)
+	@ConfigurationProperties("beancp")
+	@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 	static class ScopedBeanConfigurationProperties {
 
 	}
 
-	@ConfigurationProperties(prefix = "beancp")
-	@Scope(scopeName = BeanDefinition.SCOPE_PROTOTYPE, proxyMode = ScopedProxyMode.TARGET_CLASS)
+	@ConfigurationProperties("beancp")
+	@Scope(scopeName = ConfigurableBeanFactory.SCOPE_PROTOTYPE, proxyMode = ScopedProxyMode.TARGET_CLASS)
 	static class ProxyScopedBeanConfigurationProperties {
 
 	}
 
-	@ConfigurationProperties(prefix = "beancp")
+	@ConfigurationProperties("beancp")
 	@Primary
 	static class PrimaryConfigurationProperties {
 

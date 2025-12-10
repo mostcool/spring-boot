@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2024 the original author or authors.
+ * Copyright 2012-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,11 +57,12 @@ class ConventionsPluginTests {
 			out.println("plugins {");
 			out.println("    id 'com.gradle.develocity'");
 			out.println("}");
-			out.println("include ':spring-boot-project:spring-boot-parent'");
+			out.println("include ':platform:spring-boot-internal-dependencies'");
 		}
-		File springBootParent = new File(this.projectDir, "spring-boot-project/spring-boot-parent/build.gradle");
-		springBootParent.getParentFile().mkdirs();
-		try (PrintWriter out = new PrintWriter(new FileWriter(springBootParent))) {
+		File internalDependencies = new File(this.projectDir,
+				"platform/spring-boot-internal-dependencies/build.gradle");
+		internalDependencies.getParentFile().mkdirs();
+		try (PrintWriter out = new PrintWriter(new FileWriter(internalDependencies))) {
 			out.println("plugins {");
 			out.println("    id 'java-platform'");
 			out.println("}");
@@ -76,7 +77,9 @@ class ConventionsPluginTests {
 			out.println("    id 'org.springframework.boot.conventions'");
 			out.println("}");
 			out.println("version = '1.2.3'");
-			out.println("sourceCompatibility = '17'");
+			out.println("java {");
+			out.println("    sourceCompatibility = '17'");
+			out.println("}");
 			out.println("description 'Test project for manifest customization'");
 			out.println("jar.archiveFileName = 'test.jar'");
 		}
@@ -106,7 +109,9 @@ class ConventionsPluginTests {
 			out.println("    id 'org.springframework.boot.conventions'");
 			out.println("}");
 			out.println("version = '1.2.3'");
-			out.println("sourceCompatibility = '17'");
+			out.println("java {");
+			out.println("    sourceCompatibility = '17'");
+			out.println("}");
 			out.println("description 'Test'");
 		}
 		runGradle("assemble");
@@ -135,7 +140,9 @@ class ConventionsPluginTests {
 			out.println("    id 'org.springframework.boot.conventions'");
 			out.println("}");
 			out.println("version = '1.2.3'");
-			out.println("sourceCompatibility = '17'");
+			out.println("java {");
+			out.println("    sourceCompatibility = '17'");
+			out.println("}");
 			out.println("description 'Test'");
 		}
 		runGradle("assemble");

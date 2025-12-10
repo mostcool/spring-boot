@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2025 the original author or authors.
+ * Copyright 2012-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.build.bom;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,9 +28,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
 
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.VersionRange;
@@ -38,7 +45,9 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolutionResult;
+import org.w3c.dom.Document;
 
+import org.springframework.boot.build.bom.ResolvedBom.Id;
 import org.springframework.boot.build.bom.bomr.version.DependencyVersion;
 
 /**
@@ -59,13 +68,15 @@ public class Library {
 
 	private final String versionProperty;
 
+	private final UpgradePolicy upgradePolicy;
+
 	private final List<ProhibitedVersion> prohibitedVersions;
 
 	private final boolean considerSnapshots;
 
 	private final VersionAlignment versionAlignment;
 
-	private final String alignsWithBom;
+	private final BomAlignment bomAlignment;
 
 	private final String linkRootName;
 
@@ -79,28 +90,31 @@ public class Library {
 	 * be {@code null} in which case the {@code name} is used.
 	 * @param version version of the library
 	 * @param groups groups in the library
+	 * @param upgradePolicy the upgrade policy of the library, or {@code null} to use the
+	 * containing bom's policy
 	 * @param prohibitedVersions version of the library that are prohibited
 	 * @param considerSnapshots whether to consider snapshots
 	 * @param versionAlignment version alignment, if any, for the library
-	 * @param alignsWithBom the coordinates of the bom, if any, that this library should
-	 * align with
+	 * @param bomAlignment the bom, if any, that this library should align with
 	 * @param linkRootName the root name to use when generating link variable or
 	 * {@code null} to generate one based on the library {@code name}
 	 * @param links a list of HTTP links relevant to the library
 	 */
 	public Library(String name, String calendarName, LibraryVersion version, List<Group> groups,
-			List<ProhibitedVersion> prohibitedVersions, boolean considerSnapshots, VersionAlignment versionAlignment,
-			String alignsWithBom, String linkRootName, Map<String, List<Link>> links) {
+			UpgradePolicy upgradePolicy, List<ProhibitedVersion> prohibitedVersions, boolean considerSnapshots,
+			VersionAlignment versionAlignment, BomAlignment bomAlignment, String linkRootName,
+			Map<String, List<Link>> links) {
 		this.name = name;
 		this.calendarName = (calendarName != null) ? calendarName : name;
 		this.version = version;
 		this.groups = groups;
 		this.versionProperty = "Spring Boot".equals(name) ? null
 				: name.toLowerCase(Locale.ENGLISH).replace(' ', '-') + ".version";
+		this.upgradePolicy = upgradePolicy;
 		this.prohibitedVersions = prohibitedVersions;
 		this.considerSnapshots = considerSnapshots;
 		this.versionAlignment = versionAlignment;
-		this.alignsWithBom = alignsWithBom;
+		this.bomAlignment = bomAlignment;
 		this.linkRootName = (linkRootName != null) ? linkRootName : generateLinkRootName(name);
 		this.links = (links != null) ? Collections.unmodifiableMap(new TreeMap<>(links)) : Collections.emptyMap();
 	}
@@ -129,6 +143,10 @@ public class Library {
 		return this.versionProperty;
 	}
 
+	public UpgradePolicy getUpgradePolicy() {
+		return this.upgradePolicy;
+	}
+
 	public List<ProhibitedVersion> getProhibitedVersions() {
 		return this.prohibitedVersions;
 	}
@@ -145,8 +163,8 @@ public class Library {
 		return this.linkRootName;
 	}
 
-	public String getAlignsWithBom() {
-		return this.alignsWithBom;
+	public BomAlignment getAlignsWithBom() {
+		return this.bomAlignment;
 	}
 
 	public Map<String, List<Link>> getLinks() {
@@ -173,8 +191,9 @@ public class Library {
 	}
 
 	public Library withVersion(LibraryVersion version) {
-		return new Library(this.name, this.calendarName, version, this.groups, this.prohibitedVersions,
-				this.considerSnapshots, this.versionAlignment, this.alignsWithBom, this.linkRootName, this.links);
+		return new Library(this.name, this.calendarName, version, this.groups, this.upgradePolicy,
+				this.prohibitedVersions, this.considerSnapshots, this.versionAlignment, this.bomAlignment,
+				this.linkRootName, this.links);
 	}
 
 	/**
@@ -406,10 +425,39 @@ public class Library {
 
 	}
 
+	public interface VersionAlignment {
+
+		Set<String> resolve();
+
+	}
+
+	public static class BomAlignment {
+
+		private final String coordinates;
+
+		private final Predicate<Id> excluding;
+
+		public BomAlignment(String bomCoordinates, Predicate<Id> excluding) {
+			this.coordinates = bomCoordinates;
+			this.excluding = excluding;
+		}
+
+		public String getCoordinates() {
+			return this.coordinates;
+		}
+
+		public boolean exclude(Id id) {
+			return this.excluding.test(id);
+		}
+
+	}
+
 	/**
-	 * Version alignment for a library.
+	 * Version alignment for a library based on a dependency of another module.
 	 */
-	public static class VersionAlignment {
+	public static class DependencyVersionAlignment implements VersionAlignment {
+
+		private final String dependency;
 
 		private final String from;
 
@@ -423,7 +471,9 @@ public class Library {
 
 		private Set<String> alignedVersions;
 
-		VersionAlignment(String from, String managedBy, Project project, List<Library> libraries, List<Group> groups) {
+		DependencyVersionAlignment(String dependency, String from, String managedBy, Project project,
+				List<Library> libraries, List<Group> groups) {
+			this.dependency = dependency;
 			this.from = from;
 			this.managedBy = managedBy;
 			this.project = project;
@@ -431,27 +481,34 @@ public class Library {
 			this.groups = groups;
 		}
 
+		@Override
 		public Set<String> resolve() {
 			if (this.alignedVersions != null) {
 				return this.alignedVersions;
 			}
 			Map<String, String> versions = resolveAligningDependencies();
-			Set<String> versionsInLibrary = new HashSet<>();
-			for (Group group : this.groups) {
-				for (Module module : group.getModules()) {
-					String version = versions.get(group.getId() + ":" + module.getName());
-					if (version != null) {
-						versionsInLibrary.add(version);
-					}
-				}
-				for (String plugin : group.getPlugins()) {
-					String version = versions.get(group.getId() + ":" + plugin);
-					if (version != null) {
-						versionsInLibrary.add(version);
-					}
-				}
+			if (this.dependency != null) {
+				String version = versions.get(this.dependency);
+				this.alignedVersions = (version != null) ? Set.of(version) : Collections.emptySet();
 			}
-			this.alignedVersions = versionsInLibrary;
+			else {
+				Set<String> versionsInLibrary = new HashSet<>();
+				for (Group group : this.groups) {
+					for (Module module : group.getModules()) {
+						String version = versions.get(group.getId() + ":" + module.getName());
+						if (version != null) {
+							versionsInLibrary.add(version);
+						}
+					}
+					for (String plugin : group.getPlugins()) {
+						String version = versions.get(group.getId() + ":" + plugin);
+						if (version != null) {
+							versionsInLibrary.add(version);
+						}
+					}
+				}
+				this.alignedVersions = versionsInLibrary;
+			}
 			return this.alignedVersions;
 		}
 
@@ -531,6 +588,100 @@ public class Library {
 		@Override
 		public String toString() {
 			String result = "version from dependencies of " + this.from;
+			if (this.managedBy != null) {
+				result += " that is managed by " + this.managedBy;
+			}
+			return result;
+		}
+
+	}
+
+	/**
+	 * Version alignment for a library based on a property in the pom of another module.
+	 */
+	public static class PomPropertyVersionAlignment implements VersionAlignment {
+
+		private final String name;
+
+		private final String from;
+
+		private final String managedBy;
+
+		private final Project project;
+
+		private final List<Library> libraries;
+
+		private Set<String> alignedVersions;
+
+		PomPropertyVersionAlignment(String name, String from, String managedBy, Project project,
+				List<Library> libraries) {
+			this.name = name;
+			this.from = from;
+			this.managedBy = managedBy;
+			this.project = project;
+			this.libraries = libraries;
+		}
+
+		@Override
+		public Set<String> resolve() {
+			if (this.alignedVersions != null) {
+				return this.alignedVersions;
+			}
+			Configuration alignmentConfiguration = this.project.getConfigurations()
+				.detachedConfiguration(getAligningDependencies().toArray(new Dependency[0]));
+			Set<File> files = alignmentConfiguration.resolve();
+			if (files.size() != 1) {
+				throw new IllegalStateException(
+						"Expected a single file when resolving the pom of " + this.from + " but found " + files.size());
+			}
+			File pomFile = files.iterator().next();
+			return Set.of(propertyFrom(pomFile));
+		}
+
+		private List<Dependency> getAligningDependencies() {
+			Library managingLibrary = findManagingLibrary();
+			List<Dependency> boms = getBomDependencies(managingLibrary);
+			List<Dependency> dependencies = new ArrayList<>();
+			dependencies.addAll(boms);
+			dependencies.add(this.project.getDependencies().create(this.from + "@pom"));
+			return dependencies;
+		}
+
+		private Library findManagingLibrary() {
+			if (this.managedBy == null) {
+				return null;
+			}
+			return this.libraries.stream()
+				.filter((candidate) -> this.managedBy.equals(candidate.getName()))
+				.findFirst()
+				.orElseThrow(() -> new IllegalStateException("Managing library '" + this.managedBy + "' not found."));
+		}
+
+		private List<Dependency> getBomDependencies(Library manager) {
+			return manager.getGroups()
+				.stream()
+				.flatMap((group) -> group.getBoms()
+					.stream()
+					.map((bom) -> this.project.getDependencies()
+						.platform(group.getId() + ":" + bom.name() + ":" + manager.getVersion().getVersion())))
+				.toList();
+		}
+
+		private String propertyFrom(File pomFile) {
+			try {
+				DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+				Document document = documentBuilder.parse(pomFile);
+				XPath xpath = XPathFactory.newInstance().newXPath();
+				return xpath.evaluate("/project/properties/" + this.name + "/text()", document);
+			}
+			catch (Exception ex) {
+				throw new RuntimeException(ex);
+			}
+		}
+
+		@Override
+		public String toString() {
+			String result = "version from properties of " + this.from;
 			if (this.managedBy != null) {
 				result += " that is managed by " + this.managedBy;
 			}

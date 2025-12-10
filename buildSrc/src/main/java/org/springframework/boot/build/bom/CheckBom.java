@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2025 the original author or authors.
+ * Copyright 2012-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -45,6 +46,7 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.VerificationException;
 
+import org.springframework.boot.build.bom.Library.BomAlignment;
 import org.springframework.boot.build.bom.Library.Group;
 import org.springframework.boot.build.bom.Library.ImportedBom;
 import org.springframework.boot.build.bom.Library.Module;
@@ -291,20 +293,22 @@ public abstract class CheckBom extends DefaultTask {
 		@Override
 		public List<String> check(Library library, ResolvedLibrary resolvedLibrary) {
 			List<String> errors = new ArrayList<>();
-			String alignsWithBom = library.getAlignsWithBom();
+			BomAlignment alignsWithBom = library.getAlignsWithBom();
 			if (alignsWithBom != null) {
 				Bom mavenBom = this.bomResolver
-					.resolveMavenBom(alignsWithBom + ":" + library.getVersion().getVersion());
-				checkDependencyManagementAlignment(resolvedLibrary, mavenBom, errors);
+					.resolveMavenBom(alignsWithBom.getCoordinates() + ":" + library.getVersion().getVersion());
+				checkDependencyManagementAlignment(resolvedLibrary, mavenBom, errors, alignsWithBom::exclude);
 			}
 			return errors;
 		}
 
-		private void checkDependencyManagementAlignment(ResolvedLibrary library, Bom mavenBom, List<String> errors) {
+		private void checkDependencyManagementAlignment(ResolvedLibrary library, Bom mavenBom, List<String> errors,
+				Predicate<Id> excluded) {
 			List<Id> managedByLibrary = library.managedDependencies();
 			List<Id> managedByBom = managedDependenciesOf(mavenBom);
 
 			List<Id> missing = new ArrayList<>(managedByBom);
+			missing.removeIf(excluded);
 			missing.removeAll(managedByLibrary);
 
 			List<Id> unexpected = new ArrayList<>(managedByLibrary);

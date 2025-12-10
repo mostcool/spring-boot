@@ -2,7 +2,9 @@ name: Release
 on:
   push:
     tags:
-      - v3.5.[0-9]+
+      - v4.0.[0-9]+
+permissions:
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
@@ -12,7 +14,7 @@ jobs:
     runs-on: ${{ vars.UBUNTU_MEDIUM || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Build and Publish
         id: build-and-publish
         uses: ./.github/actions/build
@@ -25,7 +27,7 @@ jobs:
           gradle-cache-read-only: false
           publish: true
       - name: Stage Release
-        uses: spring-io/artifactory-deploy-action@dc1913008c0599f0c4b1fdafb6ff3c502b3565ea # v0.0.2
+        uses: spring-io/artifactory-deploy-action@926d7f7cc810569395346bf3a4d91b380b3e355b # v0.0.4
         with:
           build-name: ${{ vars.COMMERCIAL && format('spring-boot-commercial-{0}', steps.build-and-publish.outputs.version) || format('spring-boot-{0}', steps.build-and-publish.outputs.version) }}
           folder: 'deployment-repository'
@@ -34,8 +36,16 @@ jobs:
           repository: ${{ vars.COMMERCIAL && 'spring-enterprise-maven-stage-local' || 'libs-staging-local' }}
           signing-key: ${{ secrets.GPG_PRIVATE_KEY }}
           signing-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          threads: 8
           uri: ${{ vars.COMMERCIAL_DEPLOY_REPO_URL || 'https://repo.spring.io' }}
           username: ${{ vars.COMMERCIAL && secrets.COMMERCIAL_ARTIFACTORY_USERNAME || secrets.ARTIFACTORY_USERNAME }}
+      - name: Send Notification
+        if: failure()
+        uses: ./.github/actions/send-notification
+        with:
+          run-name: ${{ format('{0} | Release Staging | {1}', github.ref_name, inputs.version) }}
+          status: ${{ job.status }}
+          webhook-url: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
     outputs:
       version: ${{ steps.build-and-publish.outputs.version }}
   verify:
@@ -61,14 +71,13 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v6
       - name: Sync to Maven Central
         uses: ./.github/actions/sync-to-maven-central
         with:
+          central-token-password: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          central-token-username: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           jfrog-cli-config-token: ${{ secrets.JF_ARTIFACTORY_SPRING }}
-          ossrh-s01-staging-profile: ${{ secrets.OSSRH_S01_STAGING_PROFILE }}
-          ossrh-s01-token-password: ${{ secrets.OSSRH_S01_TOKEN_PASSWORD }}
-          ossrh-s01-token-username: ${{ secrets.OSSRH_S01_TOKEN_USERNAME }}
           spring-boot-version: ${{ needs.build-and-stage-release.outputs.version }}
   promote-release:
     name: Promote Release
@@ -78,7 +87,7 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Set up JFrog CLI
-        uses: jfrog/setup-jfrog-cli@611876cbed7d009aab97257020a59ddde6e840c0 # v4.5.8
+        uses: jfrog/setup-jfrog-cli@5b06f730cc5a6f55d78b30753f8583454b08c0aa # v4.8.1
         env:
           JF_ENV_SPRING: ${{ vars.COMMERCIAL && secrets.COMMERCIAL_JF_ARTIFACTORY_SPRING || secrets.JF_ARTIFACTORY_SPRING }}
       - name: Promote open source build
@@ -96,7 +105,7 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v6
       - name: Publish
         uses: ./.github/actions/publish-gradle-plugin
         with:
@@ -113,11 +122,11 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v6
       - name: Publish to SDKMAN!
         uses: ./.github/actions/publish-to-sdkman
         with:
-          make-default: false
+          make-default: true
           sdkman-consumer-key: ${{ secrets.SDKMAN_CONSUMER_KEY }}
           sdkman-consumer-token: ${{ secrets.SDKMAN_CONSUMER_TOKEN }}
           spring-boot-version: ${{ needs.build-and-stage-release.outputs.version }}
@@ -129,7 +138,7 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v6
       - name: Update Homebrew Tap
         uses: ./.github/actions/update-homebrew-tap
         with:
@@ -147,7 +156,7 @@ jobs:
       - name: Run Deploy Docs Workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run deploy-docs.yml --repo spring-projects/spring-boot -r docs-build -f build-refname=${{ github.ref_name }} -f build-version=${{ needs.build-and-stage-release.outputs.version }}
+        run: gh workflow run deploy-docs.yml --repo ${{ github.repository }} -r docs-build -f build-refname=${{ github.ref_name }} -f build-version=${{ needs.build-and-stage-release.outputs.version }}
   create-github-release:
     name: Create GitHub Release
     needs:
@@ -160,10 +169,10 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Check Out Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v6
       - name: Create GitHub Release
         uses: ./.github/actions/create-github-release
         with:
+          commercial: ${{ vars.COMMERCIAL }}
           milestone: ${{ needs.build-and-stage-release.outputs.version }}
           token: ${{ secrets.GH_ACTIONS_REPO_TOKEN }}
-          commercial: ${{ vars.COMMERCIAL }}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2025 the original author or authors.
+ * Copyright 2012-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -38,6 +39,10 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaPlatformPlugin;
 
+import org.springframework.boot.build.bom.BomExtension.LibraryHandler.AlignWithHandler.PropertyHandler;
+import org.springframework.boot.build.bom.BomExtension.LibraryHandler.AlignWithHandler.VersionHandler;
+import org.springframework.boot.build.bom.Library.BomAlignment;
+import org.springframework.boot.build.bom.Library.DependencyVersionAlignment;
 import org.springframework.boot.build.bom.Library.Exclusion;
 import org.springframework.boot.build.bom.Library.Group;
 import org.springframework.boot.build.bom.Library.ImportedBom;
@@ -45,8 +50,10 @@ import org.springframework.boot.build.bom.Library.LibraryVersion;
 import org.springframework.boot.build.bom.Library.Link;
 import org.springframework.boot.build.bom.Library.Module;
 import org.springframework.boot.build.bom.Library.PermittedDependency;
+import org.springframework.boot.build.bom.Library.PomPropertyVersionAlignment;
 import org.springframework.boot.build.bom.Library.ProhibitedVersion;
 import org.springframework.boot.build.bom.Library.VersionAlignment;
+import org.springframework.boot.build.bom.ResolvedBom.Id;
 import org.springframework.boot.build.bom.bomr.version.DependencyVersion;
 import org.springframework.boot.build.properties.BuildProperties;
 import org.springframework.util.PropertyPlaceholderHelper;
@@ -106,14 +113,24 @@ public class BomExtension {
 				(version != null) ? version : "");
 		action.execute(libraryHandler);
 		LibraryVersion libraryVersion = new LibraryVersion(DependencyVersion.parse(libraryHandler.version));
-		VersionAlignment versionAlignment = (libraryHandler.alignWith.version != null)
-				? new VersionAlignment(libraryHandler.alignWith.version.from,
-						libraryHandler.alignWith.version.managedBy, this.project, this.libraries, libraryHandler.groups)
-				: null;
 		addLibrary(new Library(name, libraryHandler.calendarName, libraryVersion, libraryHandler.groups,
-				libraryHandler.prohibitedVersions, libraryHandler.considerSnapshots, versionAlignment,
-				libraryHandler.alignWith.dependencyManagementDeclaredIn, libraryHandler.linkRootName,
+				libraryHandler.upgradePolicy, libraryHandler.prohibitedVersions, libraryHandler.considerSnapshots,
+				versionAlignment(libraryHandler), libraryHandler.alignWith.bomAlignment, libraryHandler.linkRootName,
 				libraryHandler.links));
+	}
+
+	private VersionAlignment versionAlignment(LibraryHandler libraryHandler) {
+		VersionHandler version = libraryHandler.alignWith.version;
+		if (version != null) {
+			return new DependencyVersionAlignment(version.of, version.from, version.managedBy, this.project,
+					this.libraries, libraryHandler.groups);
+		}
+		PropertyHandler property = libraryHandler.alignWith.property;
+		if (property != null) {
+			return new PomPropertyVersionAlignment(property.name, property.of, property.managedBy, this.project,
+					this.libraries);
+		}
+		return null;
 	}
 
 	private String createDependencyNotation(String groupId, String artifactId, DependencyVersion version) {
@@ -182,6 +199,8 @@ public class BomExtension {
 
 		private final List<Group> groups = new ArrayList<>();
 
+		private UpgradePolicy upgradePolicy;
+
 		private final List<ProhibitedVersion> prohibitedVersions = new ArrayList<>();
 
 		private final AlignWithHandler alignWith;
@@ -220,6 +239,10 @@ public class BomExtension {
 			action.execute(groupHandler);
 			this.groups
 				.add(new Group(groupHandler.id, groupHandler.modules, groupHandler.plugins, groupHandler.imports));
+		}
+
+		public void setUpgradePolicy(UpgradePolicy upgradePolicy) {
+			this.upgradePolicy = upgradePolicy;
 		}
 
 		public void prohibit(Action<ProhibitedHandler> action) {
@@ -382,22 +405,42 @@ public class BomExtension {
 
 			private VersionHandler version;
 
-			private String dependencyManagementDeclaredIn;
+			private PropertyHandler property;
+
+			private BomAlignment bomAlignment;
 
 			public void version(Action<VersionHandler> action) {
 				this.version = new VersionHandler();
 				action.execute(this.version);
 			}
 
+			public void property(Action<PropertyHandler> action) {
+				this.property = new PropertyHandler();
+				action.execute(this.property);
+			}
+
 			public void dependencyManagementDeclaredIn(String bomCoordinates) {
-				this.dependencyManagementDeclaredIn = bomCoordinates;
+				this.bomAlignment = new BomAlignment(bomCoordinates, (id) -> false);
+			}
+
+			public void dependencyManagementDeclaredIn(String bomCoordinates,
+					Action<DependencyManagementDeclaredInHandler> action) {
+				DependencyManagementDeclaredInHandler handler = new DependencyManagementDeclaredInHandler();
+				action.execute(handler);
+				this.bomAlignment = new BomAlignment(bomCoordinates, handler.exclusions);
 			}
 
 			public static class VersionHandler {
 
+				private String of;
+
 				private String from;
 
 				private String managedBy;
+
+				public void of(String of) {
+					this.of = of;
+				}
 
 				public void from(String from) {
 					this.from = from;
@@ -405,6 +448,38 @@ public class BomExtension {
 
 				public void managedBy(String managedBy) {
 					this.managedBy = managedBy;
+				}
+
+			}
+
+			public static class PropertyHandler {
+
+				private String name;
+
+				private String of;
+
+				private String managedBy;
+
+				public void name(String name) {
+					this.name = name;
+				}
+
+				public void of(String dependency) {
+					this.of = dependency;
+				}
+
+				public void managedBy(String managedBy) {
+					this.managedBy = managedBy;
+				}
+
+			}
+
+			public static class DependencyManagementDeclaredInHandler {
+
+				private Predicate<Id> exclusions = (id) -> false;
+
+				public void excluding(Predicate<Id> exclusion) {
+					this.exclusions = this.exclusions.or(exclusion);
 				}
 
 			}

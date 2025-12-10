@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2025 the original author or authors.
+ * Copyright 2012-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -162,10 +162,10 @@ public class AntoraAsciidocAttributes {
 		attributes.put("version-native-build-tools", (String) this.projectProperties.get("nativeBuildToolsVersion"));
 		attributes.put("version-graal", (String) this.projectProperties.get("graalVersion"));
 		addDependencyVersion(attributes, "jackson-annotations", "com.fasterxml.jackson.core:jackson-annotations");
-		addDependencyVersion(attributes, "jackson-core", "com.fasterxml.jackson.core:jackson-core");
-		addDependencyVersion(attributes, "jackson-databind", "com.fasterxml.jackson.core:jackson-databind");
-		addDependencyVersion(attributes, "jackson-dataformat-xml",
-				"com.fasterxml.jackson.dataformat:jackson-dataformat-xml");
+		addDependencyVersion(attributes, "jackson-core", "tools.jackson.core:jackson-core");
+		addDependencyVersion(attributes, "jackson-databind", "tools.jackson.core:jackson-databind");
+		addDependencyVersion(attributes, "jackson-dataformat-xml", "tools.jackson.dataformat:jackson-dataformat-xml");
+		addDependencyVersion(attributes, "jackson2-databind", "com.fasterxml.jackson.core:jackson-databind");
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-commons");
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-couchbase");
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-cassandra");
@@ -178,27 +178,6 @@ public class AntoraAsciidocAttributes {
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-redis");
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-rest", "spring-data-rest-core");
 		addSpringDataDependencyVersion(attributes, internal, "spring-data-ldap");
-		addTestcontainersDependencyVersion(attributes, internal, "activemq");
-		addTestcontainersDependencyVersion(attributes, internal, "cassandra");
-		addTestcontainersDependencyVersion(attributes, internal, "clickhouse");
-		addTestcontainersDependencyVersion(attributes, internal, "couchbase");
-		addTestcontainersDependencyVersion(attributes, internal, "elasticsearch");
-		addTestcontainersDependencyVersion(attributes, internal, "grafana");
-		addTestcontainersDependencyVersion(attributes, internal, "jdbc");
-		addTestcontainersDependencyVersion(attributes, internal, "kafka");
-		addTestcontainersDependencyVersion(attributes, internal, "mariadb");
-		addTestcontainersDependencyVersion(attributes, internal, "mongodb");
-		addTestcontainersDependencyVersion(attributes, internal, "mssqlserver");
-		addTestcontainersDependencyVersion(attributes, internal, "mysql");
-		addTestcontainersDependencyVersion(attributes, internal, "neo4j");
-		addTestcontainersDependencyVersion(attributes, internal, "oracle-xe");
-		addTestcontainersDependencyVersion(attributes, internal, "oracle-free");
-		addTestcontainersDependencyVersion(attributes, internal, "postgresql");
-		addTestcontainersDependencyVersion(attributes, internal, "pulsar");
-		addTestcontainersDependencyVersion(attributes, internal, "rabbitmq");
-		addTestcontainersDependencyVersion(attributes, internal, "redpanda");
-		addTestcontainersDependencyVersion(attributes, internal, "r2dbc");
-		addDependencyVersion(attributes, "pulsar-client-reactive-api", "org.apache.pulsar:pulsar-client-reactive-api");
 		addDependencyVersion(attributes, "pulsar-client-api", "org.apache.pulsar:pulsar-client-api");
 	}
 
@@ -216,11 +195,6 @@ public class AntoraAsciidocAttributes {
 		String antoraVersion = version.endsWith(DASH_SNAPSHOT) ? majorMinor + DASH_SNAPSHOT : majorMinor;
 		internal.put("antoraversion-" + name, antoraVersion);
 		internal.put("dotxversion-" + name, majorMinor + ".x");
-	}
-
-	private void addTestcontainersDependencyVersion(Map<String, String> attributes, Map<String, String> internal,
-			String artifactId) {
-		addDependencyVersion(attributes, "testcontainers-" + artifactId, "org.testcontainers:" + artifactId);
 	}
 
 	private void addDependencyVersion(Map<String, String> attributes, String name, String groupAndArtifactId) {
@@ -242,19 +216,13 @@ public class AntoraAsciidocAttributes {
 
 	private void addUrlJava(Map<String, String> attributes) {
 		attributes.put("url-javase-javadoc", "https://docs.oracle.com/en/java/javase/17/docs/api");
+		attributes.put("javadoc-location-java", "{url-javase-javadoc}/java.base");
 		attributes.put("javadoc-location-java-beans", "{url-javase-javadoc}/java.desktop");
-		attributes.put("javadoc-location-java-lang", "{url-javase-javadoc}/java.base");
-		attributes.put("javadoc-location-java-net", "{url-javase-javadoc}/java.base");
-		attributes.put("javadoc-location-java-io", "{url-javase-javadoc}/java.base");
-		attributes.put("javadoc-location-java-nio", "{url-javase-javadoc}/java.base");
-		attributes.put("javadoc-location-java-security", "{url-javase-javadoc}/java.base");
 		attributes.put("javadoc-location-java-sql", "{url-javase-javadoc}/java.sql");
-		attributes.put("javadoc-location-java-time", "{url-javase-javadoc}/java.base");
-		attributes.put("javadoc-location-java-util", "{url-javase-javadoc}/java.base");
+		attributes.put("javadoc-location-javax", "{url-javase-javadoc}/java.base");
 		attributes.put("javadoc-location-javax-management", "{url-javase-javadoc}/java.management");
 		attributes.put("javadoc-location-javax-net", "{url-javase-javadoc}/java.base");
 		attributes.put("javadoc-location-javax-sql", "{url-javase-javadoc}/java.sql");
-		attributes.put("javadoc-location-javax-security", "{url-javase-javadoc}/java.base");
 		attributes.put("javadoc-location-javax-xml", "{url-javase-javadoc}/java.xml");
 	}
 

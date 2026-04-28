@@ -50,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  * @author Phillip Webb
  * @author Pavel Anisimov
  * @author Yanming Zhou
+ * @author Ondřej Světlík
  */
 class ValueObjectBinderTests {
 
@@ -158,6 +159,60 @@ class ValueObjectBinderTests {
 		assertThat(bean.getValueBean().isBooleanValue()).isFalse();
 		assertThat(bean.getValueBean().getStringValue()).isEqualTo("foo");
 		assertThat(bean.getValueBean().getEnumValue()).isNull();
+	}
+
+	@Test
+	void bindToClassWhenNoValuesShouldNotBind() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		this.sources.add(source);
+		assertThat(this.binder.bind("foo", Bindable.of(ExampleNestedBean.class)).isBound()).isFalse();
+	}
+
+	@Test
+	void bindToClassWhenParentOfEmptyStringAndSubValuesShouldFail() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.value-bean", "");
+		source.put("foo.value-bean.int-value", "123");
+		source.put("foo.value-bean.long-value", "34");
+		source.put("foo.value-bean.string-value", "foo");
+		this.sources.add(source);
+		ExampleNestedBean bean = this.binder.bind("foo", Bindable.of(ExampleNestedBean.class)).get();
+		assertThat(bean.getValueBean().getIntValue()).isEqualTo(123);
+		assertThat(bean.getValueBean().getLongValue()).isEqualTo(34);
+		assertThat(bean.getValueBean().isBooleanValue()).isFalse();
+		assertThat(bean.getValueBean().getStringValue()).isEqualTo("foo");
+		assertThat(bean.getValueBean().getEnumValue()).isNull();
+	}
+
+	@Test
+	void bindToClassWhenParentOfEmptyStringAndNoSubValuesShouldFail() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.value-bean", "");
+		this.sources.add(source);
+		ExampleNestedBean bean = this.binder.bind("foo", Bindable.of(ExampleNestedBean.class)).get();
+		assertThat(bean.getValueBean().getIntValue()).isEqualTo(0);
+		assertThat(bean.getValueBean().getLongValue()).isEqualTo(0);
+		assertThat(bean.getValueBean().isBooleanValue()).isFalse();
+		assertThat(bean.getValueBean().getStringValue()).isNull();
+		assertThat(bean.getValueBean().getEnumValue()).isNull();
+	}
+
+	@Test
+	void bindToClassWhenParentOfNullAndNoSubValuesShouldNotBind() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.value-bean", null);
+		this.sources.add(source);
+		BindResult<ExampleNestedBean> bindResult = this.binder.bind("foo", Bindable.of(ExampleNestedBean.class));
+		assertThat(bindResult.isBound()).isFalse();
+	}
+
+	@Test
+	void bindToEmptyRecordWhenParentOfEmptyString() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo", "");
+		this.sources.add(source);
+		EmptyRecord emptyRecord = this.binder.bind("foo", Bindable.of(EmptyRecord.class)).get();
+		assertThat(emptyRecord).isNotNull();
 	}
 
 	@Test
@@ -324,6 +379,25 @@ class ValueObjectBinderTests {
 		NestedConstructorBeanWithEmptyDefaultValueForOptionalTypes bound = this.binder.bindOrCreate("foo",
 				Bindable.of(NestedConstructorBeanWithEmptyDefaultValueForOptionalTypes.class));
 		assertThat(bound.getOptionalValue()).isEmpty();
+	}
+
+	@Test
+	void bindWhenOptionalParameterWithNoValueForPrimitiveShouldReturnEmptyInstance() {
+		RecordPropertiesWithOptional bound = this.binder.bindOrCreate("foo",
+				Bindable.of(RecordPropertiesWithOptional.class));
+		assertThat(bound.property1()).isEmpty();
+	}
+
+	@Test
+	void bindWhenOptionalParameterInNestedWithNoValueForPrimitiveShouldReturnEmptyInstance() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.nested.property2", "str");
+		this.sources.add(source);
+		RecordPropertiesWithOptionalInNestedRecord bound = this.binder.bindOrCreate("foo",
+				Bindable.of(RecordPropertiesWithOptionalInNestedRecord.class));
+		assertThat(bound.nested()).isNotNull();
+		assertThat(bound.nested().property1()).isEmpty();
+		assertThat(bound.nested().property2()).isEqualTo("str");
 	}
 
 	@Test
@@ -902,6 +976,14 @@ class ValueObjectBinderTests {
 			@DefaultValue("default-value-2") String property2) {
 	}
 
+	record RecordPropertiesWithOptional(Optional<String> property1) {
+	}
+
+	record RecordPropertiesWithOptionalInNestedRecord(NestedRecord nested) {
+		record NestedRecord(Optional<String> property1, String property2) {
+		}
+	}
+
 	static class NonExtractableParameterName {
 
 		private @Nullable String value;
@@ -923,6 +1005,10 @@ class ValueObjectBinderTests {
 		void setJsonPath(@Nullable JsonPath jsonPath) {
 			this.jsonPath = jsonPath;
 		}
+
+	}
+
+	record EmptyRecord() {
 
 	}
 

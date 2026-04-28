@@ -24,9 +24,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import io.micrometer.tracing.SpanCustomizer;
 import io.micrometer.tracing.Tracer.SpanInScope;
+import io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler;
+import io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.EventListener;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
@@ -36,6 +39,7 @@ import io.micrometer.tracing.otel.bridge.OtelTracer.EventPublisher;
 import io.micrometer.tracing.otel.bridge.Slf4JBaggageEventListener;
 import io.micrometer.tracing.otel.bridge.Slf4JEventListener;
 import io.micrometer.tracing.otel.propagation.BaggageTextMapPropagator;
+import io.micrometer.tracing.propagation.Propagator;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.MeterProvider;
@@ -58,11 +62,12 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mockito;
 
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration;
 import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration;
+import org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration;
+import org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.testsupport.classpath.ForkedClassPath;
@@ -76,7 +81,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -89,8 +93,7 @@ import static org.mockito.Mockito.mock;
 class OpenTelemetryTracingAutoConfigurationTests {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-		.withConfiguration(AutoConfigurations.of(
-				org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration.class,
+		.withConfiguration(AutoConfigurations.of(OpenTelemetrySdkAutoConfiguration.class,
 				OpenTelemetryTracingAutoConfiguration.class));
 
 	@Test
@@ -111,16 +114,80 @@ class OpenTelemetryTracingAutoConfigurationTests {
 			assertThat(context).hasSingleBean(OtelSpanCustomizer.class);
 			assertThat(context).hasSingleBean(SpanProcessors.class);
 			assertThat(context).hasSingleBean(SpanExporters.class);
+			assertThat(context).hasSingleBean(SpanLimits.class);
 		});
 	}
 
 	@Test
-	void samplerIsParentBased() {
+	void samplerIsParentBasedTraceIdRatioByDefault() {
 		this.contextRunner.run((context) -> {
 			Sampler sampler = context.getBean(Sampler.class);
-			assertThat(sampler).isNotNull();
-			assertThat(sampler.getDescription()).startsWith("ParentBased{");
+			assertThat(sampler.getDescription()).startsWith("ParentBased{root:TraceIdRatioBased{");
 		});
+	}
+
+	@Test
+	void samplerUsesCustomProbability() {
+		this.contextRunner.withPropertyValues("management.tracing.sampling.probability=0.5").run((context) -> {
+			Sampler sampler = context.getBean(Sampler.class);
+			assertThat(sampler.getDescription()).contains("0.5");
+		});
+	}
+
+	@Test
+	void samplerCanBeSetToAlwaysOn() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.tracing.sampler=always-on").run((context) -> {
+			Sampler sampler = context.getBean(Sampler.class);
+			assertThat(sampler.getDescription()).isEqualTo("AlwaysOnSampler");
+		});
+	}
+
+	@Test
+	void samplerCanBeSetToAlwaysOff() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.tracing.sampler=always-off").run((context) -> {
+			Sampler sampler = context.getBean(Sampler.class);
+			assertThat(sampler.getDescription()).isEqualTo("AlwaysOffSampler");
+		});
+	}
+
+	@Test
+	void samplerCanBeSetToTraceIdRatio() {
+		this.contextRunner
+			.withPropertyValues("management.opentelemetry.tracing.sampler=trace-id-ratio",
+					"management.tracing.sampling.probability=0.3")
+			.run((context) -> {
+				Sampler sampler = context.getBean(Sampler.class);
+				assertThat(sampler.getDescription()).startsWith("TraceIdRatioBased{").contains("0.3");
+			});
+	}
+
+	@Test
+	void samplerCanBeSetToParentBasedAlwaysOn() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.tracing.sampler=parent-based-always-on")
+			.run((context) -> {
+				Sampler sampler = context.getBean(Sampler.class);
+				assertThat(sampler.getDescription()).startsWith("ParentBased{root:AlwaysOnSampler");
+			});
+	}
+
+	@Test
+	void samplerCanBeSetToParentBasedAlwaysOff() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.tracing.sampler=parent-based-always-off")
+			.run((context) -> {
+				Sampler sampler = context.getBean(Sampler.class);
+				assertThat(sampler.getDescription()).startsWith("ParentBased{root:AlwaysOffSampler");
+			});
+	}
+
+	@Test
+	void samplerCanBeSetToParentBasedTraceIdRatio() {
+		this.contextRunner
+			.withPropertyValues("management.opentelemetry.tracing.sampler=parent-based-trace-id-ratio",
+					"management.tracing.sampling.probability=0.7")
+			.run((context) -> {
+				Sampler sampler = context.getBean(Sampler.class);
+				assertThat(sampler.getDescription()).startsWith("ParentBased{root:TraceIdRatioBased{").contains("0.7");
+			});
 	}
 
 	@ParameterizedTest
@@ -177,6 +244,29 @@ class OpenTelemetryTracingAutoConfigurationTests {
 			assertThat(context).hasBean("customBatchSpanProcessor");
 			assertThat(context).hasSingleBean(BatchSpanProcessor.class);
 		});
+	}
+
+	@Test
+	void shouldNotSupplyOtelPropagatorWhenPropagatorBeanIsPresent() {
+		this.contextRunner.withUserConfiguration(PropagatorConfiguration.class).run((context) -> {
+			assertThat(context).hasSingleBean(Propagator.class);
+			assertThat(context).hasBean("customPropagator");
+			assertThat(context).doesNotHaveBean(OtelPropagator.class);
+		});
+	}
+
+	@Test
+	void shouldWorkWithBraveAutoConfigurationWhenBothConfigurationsAreOnClasspath() {
+		new ApplicationContextRunner()
+			.withConfiguration(AutoConfigurations.of(OpenTelemetrySdkAutoConfiguration.class,
+					OpenTelemetryTracingAutoConfiguration.class, BraveAutoConfiguration.class,
+					ObservationAutoConfiguration.class, MicrometerTracingAutoConfiguration.class))
+			.run((context) -> {
+				assertThat(context).hasSingleBean(io.micrometer.tracing.Tracer.class);
+				assertThat(context).hasSingleBean(Propagator.class);
+				assertThat(context).hasSingleBean(PropagatingSenderTracingObservationHandler.class);
+				assertThat(context).hasSingleBean(PropagatingReceiverTracingObservationHandler.class);
+			});
 	}
 
 	@Test
@@ -299,6 +389,34 @@ class OpenTelemetryTracingAutoConfigurationTests {
 	}
 
 	@Test
+	void spanLimitsShouldBeConfiguredWithCustomProperties() {
+		this.contextRunner
+			.withPropertyValues("management.opentelemetry.tracing.limits.max-attribute-value-length=256",
+					"management.opentelemetry.tracing.limits.max-attributes=64",
+					"management.opentelemetry.tracing.limits.max-events=32",
+					"management.opentelemetry.tracing.limits.max-links=16",
+					"management.opentelemetry.tracing.limits.max-attributes-per-event=8",
+					"management.opentelemetry.tracing.limits.max-attributes-per-link=4")
+			.run((context) -> {
+				SpanLimits spanLimits = context.getBean(SpanLimits.class);
+				assertThat(spanLimits.getMaxAttributeValueLength()).isEqualTo(256);
+				assertThat(spanLimits.getMaxNumberOfAttributes()).isEqualTo(64);
+				assertThat(spanLimits.getMaxNumberOfEvents()).isEqualTo(32);
+				assertThat(spanLimits.getMaxNumberOfLinks()).isEqualTo(16);
+				assertThat(spanLimits.getMaxNumberOfAttributesPerEvent()).isEqualTo(8);
+				assertThat(spanLimits.getMaxNumberOfAttributesPerLink()).isEqualTo(4);
+			});
+	}
+
+	@Test
+	void shouldBackOffOnCustomSpanLimitsBean() {
+		this.contextRunner.withUserConfiguration(CustomSpanLimitsConfiguration.class).run((context) -> {
+			assertThat(context).hasSingleBean(SpanLimits.class);
+			assertThat(context).hasBean("customSpanLimits");
+		});
+	}
+
+	@Test
 	void shouldCustomizeSdkTracerProvider() {
 		this.contextRunner.withUserConfiguration(SdkTracerProviderCustomizationConfiguration.class).run((context) -> {
 			SdkTracerProvider tracerProvider = context.getBean(SdkTracerProvider.class);
@@ -308,11 +426,15 @@ class OpenTelemetryTracingAutoConfigurationTests {
 	}
 
 	@Test
+	@SuppressWarnings("rawtypes")
 	void defaultSpanProcessorShouldUseMeterProviderIfAvailable() {
 		this.contextRunner.withUserConfiguration(MeterProviderConfiguration.class).run((context) -> {
 			MeterProvider meterProvider = context.getBean(MeterProvider.class);
-			assertThat(Mockito.mockingDetails(meterProvider).isMock()).isTrue();
-			then(meterProvider).should().meterBuilder(anyString());
+			SpanProcessor spanProcessor = context.getBean(SpanProcessor.class);
+			assertThat(spanProcessor).extracting("worker.spanProcessorInstrumentation.meterProvider")
+				.asInstanceOf(InstanceOfAssertFactories.type(Supplier.class))
+				.extracting(Supplier::get)
+				.isEqualTo(meterProvider);
 		});
 	}
 
@@ -360,6 +482,31 @@ class OpenTelemetryTracingAutoConfigurationTests {
 				.extracting("queue")
 				.satisfies((queue) -> assertThat(ReflectionTestUtils.<Integer>invokeMethod(queue, "capacity"))
 					.isEqualTo(2048));
+		});
+	}
+
+	@Test
+	void whenOpenTelemetryIsDisabledDoesNotProvideTracingSignalBeans() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.enabled=false").run((context) -> {
+			assertThat(context).doesNotHaveBean(SdkTracerProvider.class);
+			assertThat(context).doesNotHaveBean(SpanLimits.class);
+			assertThat(context).doesNotHaveBean(Sampler.class);
+			assertThat(context).doesNotHaveBean(SpanProcessors.class);
+			assertThat(context).doesNotHaveBean(SpanExporters.class);
+			assertThat(context).doesNotHaveBean(BatchSpanProcessor.class);
+		});
+	}
+
+	@Test
+	void whenOpenTelemetryIsDisabledStillProvidesBridgeAndPropagationBeans() {
+		this.contextRunner.withPropertyValues("management.opentelemetry.enabled=false").run((context) -> {
+			assertThat(context).hasSingleBean(OtelTracer.class);
+			assertThat(context).hasSingleBean(OtelPropagator.class);
+			assertThat(context).hasSingleBean(OtelCurrentTraceContext.class);
+			assertThat(context).hasSingleBean(Slf4JEventListener.class);
+			assertThat(context).hasSingleBean(OtelSpanCustomizer.class);
+			assertThat(context).hasSingleBean(ContextPropagators.class);
+			assertThat(context).hasSingleBean(TextMapPropagator.class);
 		});
 	}
 
@@ -514,6 +661,26 @@ class OpenTelemetryTracingAutoConfigurationTests {
 		@Bean
 		SpanCustomizer customSpanCustomizer() {
 			return mock(SpanCustomizer.class);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class PropagatorConfiguration {
+
+		@Bean
+		Propagator customPropagator() {
+			return mock(Propagator.class);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	private static final class CustomSpanLimitsConfiguration {
+
+		@Bean
+		SpanLimits customSpanLimits() {
+			return SpanLimits.builder().setMaxNumberOfEvents(99).build();
 		}
 
 	}

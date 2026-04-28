@@ -17,7 +17,7 @@
 package org.springframework.boot.http.converter.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import tools.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
 import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -28,6 +28,7 @@ import org.springframework.boot.http.converter.autoconfigure.JacksonHttpMessageC
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.converter.HttpMessageConverters.ClientBuilder;
 import org.springframework.http.converter.HttpMessageConverters.ServerBuilder;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -37,7 +38,7 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
  *
  * @author Andy Wilkinson
  * @author Brian Clozel
- * @deprecated since 4.0.0 for removal in 4.2.0 in favor of Jackson 3.
+ * @deprecated since 4.0.0 for removal in 4.3.0 in favor of Jackson 3.
  */
 @Configuration(proxyBeanMethods = false)
 @Deprecated(since = "4.0.0", forRemoval = true)
@@ -51,6 +52,7 @@ class Jackson2HttpMessageConvertersConfiguration {
 	static class MappingJackson2HttpMessageConverterConfiguration {
 
 		@Bean
+		@Order(0)
 		@ConditionalOnMissingBean(org.springframework.http.converter.json.MappingJackson2HttpMessageConverter.class)
 		Jackson2JsonMessageConvertersCustomizer jackson2HttpMessageConvertersCustomizer(ObjectMapper objectMapper) {
 			return new Jackson2JsonMessageConvertersCustomizer(objectMapper);
@@ -64,6 +66,7 @@ class Jackson2HttpMessageConvertersConfiguration {
 	protected static class MappingJackson2XmlHttpMessageConverterConfiguration {
 
 		@Bean
+		@Order(0)
 		@ConditionalOnMissingBean(org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter.class)
 		Jackson2XmlMessageConvertersCustomizer mappingJackson2XmlHttpMessageConverter(
 				Jackson2ObjectMapperBuilder builder) {

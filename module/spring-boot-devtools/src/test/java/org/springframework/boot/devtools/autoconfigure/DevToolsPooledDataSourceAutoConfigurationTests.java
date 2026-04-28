@@ -20,6 +20,7 @@ import java.io.File;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.Properties;
 
 import javax.sql.DataSource;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import org.springframework.boot.jdbc.DataSourceUnwrapper;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -120,6 +122,7 @@ class DevToolsPooledDataSourceAutoConfigurationTests extends AbstractDevToolsDat
 	}
 
 	@Test
+	@Deprecated(since = "4.1.0", forRemoval = true)
 	void derbyClientIsNotShutdown() throws Exception {
 		try (ConfigurableApplicationContext context = getContext(
 				() -> createContext("org.apache.derby.jdbc.ClientDriver", "jdbc:derby://localhost",
@@ -131,11 +134,13 @@ class DevToolsPooledDataSourceAutoConfigurationTests extends AbstractDevToolsDat
 	}
 
 	@Test
+	@Deprecated(since = "4.1.0", forRemoval = true)
 	void inMemoryDerbyIsShutdown() throws Exception {
 		try (ConfigurableApplicationContext context = getContext(
 				() -> createContext("org.apache.derby.jdbc.EmbeddedDriver", "jdbc:derby:memory:test;create=true",
 						DataSourceAutoConfiguration.class, DataSourceSpyConfiguration.class))) {
-			HikariDataSource dataSource = context.getBean(HikariDataSource.class);
+			HikariDataSource dataSource = Objects
+				.requireNonNull(DataSourceUnwrapper.unwrap(context.getBean(DataSource.class), HikariDataSource.class));
 			JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 			jdbc.execute("SELECT 1 FROM SYSIBM.SYSDUMMY1");
 			HikariPoolMXBean pool = dataSource.getHikariPoolMXBean();

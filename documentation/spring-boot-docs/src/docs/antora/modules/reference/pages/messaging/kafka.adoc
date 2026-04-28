@@ -32,6 +32,8 @@ include-code::MyBean[]
 NOTE: If the property configprop:spring.kafka.producer.transaction-id-prefix[] is defined, a javadoc:org.springframework.kafka.transaction.KafkaTransactionManager[] is automatically configured.
 Also, if a javadoc:org.springframework.kafka.support.converter.RecordMessageConverter[] bean is defined, it is automatically associated to the auto-configured javadoc:org.springframework.kafka.core.KafkaTemplate[].
 
+If there's a bean of type `KafkaTemplateObservationConvention` in the context, it is automatically registered on the `KafkaTemplate`.
+
 
 
 [[messaging.kafka.receiving]]
@@ -51,6 +53,8 @@ Depending on the listener type, a javadoc:org.springframework.kafka.support.conv
 If only a javadoc:org.springframework.kafka.support.converter.RecordMessageConverter[] bean is present for a batch listener, it is wrapped in a javadoc:org.springframework.kafka.support.converter.BatchMessageConverter[].
 
 TIP: A custom javadoc:org.springframework.kafka.transaction.ChainedKafkaTransactionManager[] must be marked javadoc:org.springframework.context.annotation.Primary[format=annotation] as it usually references the auto-configured javadoc:org.springframework.kafka.transaction.KafkaTransactionManager[] bean.
+
+If there's a bean of type `KafkaListenerObservationConvention` in the context, it is automatically registered on the container factory.
 
 
 
@@ -116,27 +120,27 @@ spring:
 
 This sets the common `prop.one` Kafka property to `first` (applies to producers, consumers, admins, and streams), the `prop.two` admin property to `second`, the `prop.three` consumer property to `third`, the `prop.four` producer property to `fourth` and the `prop.five` streams property to `fifth`.
 
-You can also configure the Spring Kafka javadoc:org.springframework.kafka.support.serializer.JsonDeserializer[] as follows:
+You can also configure the Spring Kafka javadoc:org.springframework.kafka.support.serializer.JacksonJsonDeserializer[] as follows:
 
 [configprops,yaml]
 ----
 spring:
   kafka:
     consumer:
-      value-deserializer: "org.springframework.kafka.support.serializer.JsonDeserializer"
+      value-deserializer: "org.springframework.kafka.support.serializer.JacksonJsonDeserializer"
       properties:
         "[spring.json.value.default.type]": "com.example.Invoice"
         "[spring.json.trusted.packages]": "com.example.main,com.example.another"
 ----
 
-Similarly, you can disable the javadoc:org.springframework.kafka.support.serializer.JsonSerializer[] default behavior of sending type information in headers:
+Similarly, you can disable the javadoc:org.springframework.kafka.support.serializer.JacksonJsonSerializer[] default behavior of sending type information in headers:
 
 [configprops,yaml]
 ----
 spring:
   kafka:
     producer:
-      value-serializer: "org.springframework.kafka.support.serializer.JsonSerializer"
+      value-serializer: "org.springframework.kafka.support.serializer.JacksonJsonSerializer"
       properties:
         "[spring.json.add.type.headers]": false
 ----

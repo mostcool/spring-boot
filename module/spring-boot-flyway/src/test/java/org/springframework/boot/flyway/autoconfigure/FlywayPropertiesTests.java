@@ -128,7 +128,7 @@ class FlywayPropertiesTests {
 		ignoreProperties(configuration, "resolversAsClassNames", "callbacksAsClassNames", "driver", "modernConfig",
 				"currentResolvedEnvironment", "reportFilename", "reportEnabled", "workingDirectory",
 				"cachedDataSources", "cachedResolvedEnvironments", "currentEnvironmentName", "allEnvironments",
-				"environmentProvisionMode", "provisionMode", "cleanOnValidationError");
+				"environmentProvisionMode", "provisionMode");
 		// Handled by the conversion service
 		ignoreProperties(configuration, "baselineVersionAsString", "encodingAsString", "locationsAsStrings",
 				"callbackLocationsAsStrings", "targetAsString");
@@ -140,7 +140,7 @@ class FlywayPropertiesTests {
 		// Handled as createSchemas
 		ignoreProperties(configuration, "shouldCreateSchemas");
 		// Getters for the DataSource settings rather than actual properties
-		ignoreProperties(configuration, "databaseType", "password", "url", "user");
+		ignoreProperties(configuration, "password", "url", "user");
 		// Properties not exposed by Flyway
 		ignoreProperties(configuration, "failOnMissingTarget");
 		// Properties managed by a proprietary extension

@@ -307,7 +307,7 @@ public interface JsonWriter<T> {
 		}
 
 		/**
-		 * Add the a {@link NameProcessor} to be applied when the JSON is written.
+		 * Add a {@link NameProcessor} to be applied when the JSON is written.
 		 * @param nameProcessor the name processor to add
 		 */
 		public void applyingNameProcessor(NameProcessor nameProcessor) {
@@ -316,7 +316,7 @@ public interface JsonWriter<T> {
 		}
 
 		/**
-		 * Add the a {@link ValueProcessor} to be applied when the JSON is written.
+		 * Add a {@link ValueProcessor} to be applied when the JSON is written.
 		 * @param valueProcessor the value processor to add
 		 */
 		public void applyingValueProcessor(ValueProcessor<?> valueProcessor) {
@@ -394,7 +394,7 @@ public interface JsonWriter<T> {
 
 		/**
 		 * Only include this member when an extracted value is not {@code null}.
-		 * @param extractor an function used to extract the value to test
+		 * @param extractor a function used to extract the value to test
 		 * @return a {@link Member} which may be configured further
 		 */
 		public Member<T> whenNotNull(Function<@Nullable T, ?> extractor) {

@@ -55,10 +55,8 @@
     {
       "name": "logging.file.clean-history-on-start",
       "type": "java.lang.Boolean",
-      "description": "Whether to clean the archive log files on startup. Only supported with the default logback setup.",
-      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
-      "defaultValue": false,
       "deprecation": {
+        "level": "error",
         "replacement": "logging.logback.rollingpolicy.clean-history-on-start",
         "since": "2.4.0"
       }
@@ -66,10 +64,8 @@
     {
       "name": "logging.file.max-history",
       "type": "java.lang.Integer",
-      "description": "Maximum number of archive log files to keep. Only supported with the default logback setup.",
-      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
-      "defaultValue": 7,
       "deprecation": {
+        "level": "error",
         "replacement": "logging.logback.rollingpolicy.max-history",
         "since": "2.4.0"
       }
@@ -77,10 +73,8 @@
     {
       "name": "logging.file.max-size",
       "type": "org.springframework.util.unit.DataSize",
-      "description": "Maximum log file size. Only supported with the default logback setup.",
-      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
-      "defaultValue": "10MB",
       "deprecation": {
+        "level": "error",
         "replacement": "logging.logback.rollingpolicy.max-file-size",
         "since": "2.4.0"
       }
@@ -100,10 +94,8 @@
     {
       "name": "logging.file.total-size-cap",
       "type": "org.springframework.util.unit.DataSize",
-      "description": "Total size of log backups to be kept. Only supported with the default logback setup.",
-      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
-      "defaultValue": "0B",
       "deprecation": {
+        "level": "error",
         "replacement": "logging.logback.rollingpolicy.total-size-cap",
         "since": "2.4.0"
       }
@@ -138,6 +130,55 @@
       "name": "logging.log4j2.config.override",
       "type": "java.util.List<java.lang.String>",
       "description": "Overriding configuration files used to create a composite configuration. Can be prefixed with 'optional:' to only load the override if it exists."
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.cron",
+      "type": "java.lang.String",
+      "description": "Cron expression used when the strategy is 'cron'.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": "0 0 0 * * ?"
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.file-name-pattern",
+      "type": "java.lang.String",
+      "description": "Pattern for rolled-over log file names.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": "${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz"
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.max-file-size",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "Maximum log file size.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": "10MB"
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.max-history",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of archive log files to keep.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": 7
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.strategy",
+      "type": "org.springframework.boot.logging.log4j2.RollingPolicyStrategy",
+      "description": "Rolling policy strategy.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": "size"
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.time-interval",
+      "type": "java.lang.Integer",
+      "description": "Time based triggering interval when the strategy is 'time' or 'size-and-time'.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": 1
+    },
+    {
+      "name": "logging.log4j2.rollingpolicy.time-modulate",
+      "type": "java.lang.Boolean",
+      "description": "Whether to align the next rollover time to occur at the top of the interval when the strategy is time based.",
+      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+      "defaultValue": false
     },
     {
       "name": "logging.logback.rollingpolicy.clean-history-on-start",
@@ -219,10 +260,8 @@
     {
       "name": "logging.pattern.rolling-file-name",
       "type": "java.lang.String",
-      "description": "Pattern for rolled-over log file names. Supported only with the default Logback setup.",
-      "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
-      "defaultValue": "${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz",
       "deprecation": {
+        "level": "error",
         "replacement": "logging.logback.rollingpolicy.file-name-pattern",
         "since": "2.4.0"
       }

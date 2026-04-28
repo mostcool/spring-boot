@@ -16,8 +16,11 @@
 
 package org.springframework.boot.opentelemetry.autoconfigure.logging.otlp;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
+import javax.net.ssl.X509TrustManager;
 
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.exporter.otlp.http.logs.OtlpHttpLogRecordExporter;
@@ -32,17 +35,22 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.ssl.SslAutoConfiguration;
 import org.springframework.boot.context.annotation.ImportCandidates;
 import org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration;
 import org.springframework.boot.opentelemetry.autoconfigure.logging.OpenTelemetryLoggingAutoConfiguration;
 import org.springframework.boot.opentelemetry.autoconfigure.logging.SdkLoggerProviderBuilderCustomizer;
 import org.springframework.boot.opentelemetry.autoconfigure.logging.otlp.OtlpLoggingConfigurations.ConnectionDetails.PropertiesOtlpLoggingConnectionDetails;
+import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.testsupport.classpath.resources.WithPackageResources;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link OtlpLoggingAutoConfiguration}.
@@ -86,6 +94,21 @@ class OtlpLoggingAutoConfigurationTests {
 				assertThat(connectionDetails.getUrl(Transport.HTTP)).isEqualTo("http://localhost:4318/v1/logs");
 				assertThat(context).hasSingleBean(OtlpHttpLogRecordExporter.class);
 				assertThat(context).hasSingleBean(LogRecordExporter.class);
+			});
+	}
+
+	@Test
+	void customConnectionDetailsReplacePropertyBasedConnectionDetails() {
+		OtlpLoggingConnectionDetails details = mock(OtlpLoggingConnectionDetails.class);
+		given(details.getUrl(Transport.HTTP)).willReturn("http://localhost:4318/v1/logs");
+		this.contextRunner
+			.withPropertyValues("management.opentelemetry.logging.export.otlp.endpoint=http://localhost:4319/v1/logs")
+			.withBean("customOtlpLoggingConnectionDetails", OtlpLoggingConnectionDetails.class, () -> details)
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpLoggingConnectionDetails.class);
+				assertThat(context).hasBean("customOtlpLoggingConnectionDetails");
+				assertThat(context.getBean(OtlpLoggingConnectionDetails.class).getUrl(Transport.HTTP))
+					.isEqualTo("http://localhost:4318/v1/logs");
 			});
 	}
 
@@ -204,6 +227,97 @@ class OtlpLoggingAutoConfigurationTests {
 					.extracting("delegate.meterProviderSupplier", InstanceOfAssertFactories.type(Supplier.class))
 					.satisfies((meterProviderSupplier) -> assertThat(meterProviderSupplier.get())
 						.isSameAs(MeterProviderConfiguration.meterProvider));
+			});
+	}
+
+	@Test
+	void shouldCustomizeHttpTransportWithOtlpHttpLogRecordExporterBuilderCustomizer() {
+		Duration connectTimeout = Duration.ofMinutes(20);
+		Duration timeout = Duration.ofMinutes(10);
+		this.contextRunner
+			.withBean("httpCustomizer1", OtlpHttpLogRecordExporterBuilderCustomizer.class,
+					() -> (builder) -> builder.setConnectTimeout(connectTimeout))
+			.withBean("httpCustomizer2", OtlpHttpLogRecordExporterBuilderCustomizer.class,
+					() -> (builder) -> builder.setTimeout(timeout))
+			.withPropertyValues("management.opentelemetry.logging.export.otlp.endpoint=http://localhost:4318/v1/logs")
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpHttpLogRecordExporter.class)
+					.hasSingleBean(LogRecordExporter.class);
+				OtlpHttpLogRecordExporter exporter = context.getBean(OtlpHttpLogRecordExporter.class);
+				assertThat(exporter).extracting("delegate.httpSender.client")
+					.hasFieldOrPropertyWithValue("connectTimeoutMillis", (int) connectTimeout.toMillis())
+					.hasFieldOrPropertyWithValue("callTimeoutMillis", (int) timeout.toMillis());
+			});
+	}
+
+	@Test
+	void shouldCustomizeGrpcTransportWhenEnabledWithOtlpGrpcLogRecordExporterBuilderCustomizer() {
+		Duration timeout = Duration.ofMinutes(10);
+		Duration connectTimeout = Duration.ofMinutes(20);
+		this.contextRunner
+			.withBean("grpcCustomizer1", OtlpGrpcLogRecordExporterBuilderCustomizer.class,
+					() -> (builder) -> builder.setConnectTimeout(connectTimeout))
+			.withBean("grpcCustomizer2", OtlpGrpcLogRecordExporterBuilderCustomizer.class,
+					() -> (builder) -> builder.setTimeout(timeout))
+			.withPropertyValues("management.opentelemetry.logging.export.otlp.endpoint=http://localhost:4318/v1/logs",
+					"management.opentelemetry.logging.export.otlp.transport=grpc")
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpGrpcLogRecordExporter.class)
+					.hasSingleBean(LogRecordExporter.class);
+				OtlpGrpcLogRecordExporter exporter = context.getBean(OtlpGrpcLogRecordExporter.class);
+				assertThat(exporter).extracting("delegate.grpcSender.client")
+					.hasFieldOrPropertyWithValue("connectTimeoutMillis", (int) connectTimeout.toMillis())
+					.hasFieldOrPropertyWithValue("callTimeoutMillis", (int) timeout.toMillis());
+			});
+	}
+
+	@Test
+	@WithPackageResources("test.jks")
+	void whenHasSslBundleConfiguresHttpExporter() {
+		this.contextRunner.withConfiguration(AutoConfigurations.of(SslAutoConfiguration.class))
+			.withPropertyValues("management.opentelemetry.logging.export.otlp.endpoint=https://localhost:4318/v1/logs",
+					"management.opentelemetry.logging.export.otlp.ssl.bundle=mybundle",
+					"spring.ssl.bundle.jks.mybundle.truststore.location=classpath:test.jks")
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpHttpLogRecordExporter.class);
+				OtlpHttpLogRecordExporter exporter = context.getBean(OtlpHttpLogRecordExporter.class);
+				assertThat(exporter).extracting("delegate.httpSender.client.sslSocketFactoryOrNull").isNotNull();
+				assertThat(exporter).extracting("delegate.httpSender.client.x509TrustManager")
+					.isInstanceOf(X509TrustManager.class);
+			});
+	}
+
+	@Test
+	@WithPackageResources("test.jks")
+	void whenHasSslBundleConfiguresGrpcExporter() {
+		this.contextRunner.withConfiguration(AutoConfigurations.of(SslAutoConfiguration.class))
+			.withPropertyValues("management.opentelemetry.logging.export.otlp.endpoint=https://localhost:4318/v1/logs",
+					"management.opentelemetry.logging.export.otlp.transport=grpc",
+					"management.opentelemetry.logging.export.otlp.ssl.bundle=mybundle",
+					"spring.ssl.bundle.jks.mybundle.truststore.location=classpath:test.jks")
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpGrpcLogRecordExporter.class);
+				OtlpGrpcLogRecordExporter exporter = context.getBean(OtlpGrpcLogRecordExporter.class);
+				assertThat(exporter).extracting("delegate.grpcSender.client.sslSocketFactoryOrNull").isNotNull();
+				assertThat(exporter).extracting("delegate.grpcSender.client.x509TrustManager")
+					.isInstanceOf(X509TrustManager.class);
+			});
+	}
+
+	@Test
+	void whenCustomConnectionDetailsProvidesSslBundleConfiguresHttpExporter() {
+		SslBundle sslBundle = SslBundle.systemDefault();
+		OtlpLoggingConnectionDetails connectionDetails = mock(OtlpLoggingConnectionDetails.class);
+		given(connectionDetails.getUrl(Transport.HTTP)).willReturn("https://localhost:4318/v1/logs");
+		given(connectionDetails.getSslBundle()).willReturn(sslBundle);
+		this.contextRunner
+			.withBean("customOtlpLoggingConnectionDetails", OtlpLoggingConnectionDetails.class, () -> connectionDetails)
+			.run((context) -> {
+				assertThat(context).hasSingleBean(OtlpHttpLogRecordExporter.class);
+				OtlpHttpLogRecordExporter exporter = context.getBean(OtlpHttpLogRecordExporter.class);
+				assertThat(exporter).extracting("delegate.httpSender.client.sslSocketFactoryOrNull").isNotNull();
+				assertThat(exporter).extracting("delegate.httpSender.client.x509TrustManager")
+					.isInstanceOf(X509TrustManager.class);
 			});
 	}
 

@@ -33,6 +33,7 @@ import org.springframework.boot.configurationprocessor.test.CompiledMetadataRead
 import org.springframework.boot.configurationprocessor.test.TestConfigurationMetadataAnnotationProcessor;
 import org.springframework.boot.configurationsample.deprecation.Dbcp2Configuration;
 import org.springframework.boot.configurationsample.method.NestedPropertiesMethod;
+import org.springframework.boot.configurationsample.method.NestedPropertiesMethodImmutable;
 import org.springframework.boot.configurationsample.record.ExampleRecord;
 import org.springframework.boot.configurationsample.record.NestedPropertiesRecord;
 import org.springframework.boot.configurationsample.record.RecordWithGetter;
@@ -234,6 +235,9 @@ class ConfigurationMetadataAnnotationProcessorTests extends AbstractMetadataGene
 			.fromSource(DescriptionProperties.class)
 			.withDescription(
 					"This is a lengthy description that spans across multiple lines to showcase that the line separators are cleaned automatically."));
+		assertThat(metadata).has(Metadata.withProperty("description.multi-line-whitespace", String.class)
+			.fromSource(DescriptionProperties.class)
+			.withDescription("This is an example of a description with unusual whitespace after a new line."));
 	}
 
 	@Test
@@ -424,6 +428,13 @@ class ConfigurationMetadataAnnotationProcessorTests extends AbstractMetadataGene
 		assertThat(metadata).has(Metadata.withProperty("method-nested.nested.my-nested-property"));
 		assertThat(metadata).has(Metadata.withGroup("method-nested.inner.nested"));
 		assertThat(metadata).has(Metadata.withProperty("method-nested.inner.nested.my-nested-property"));
+	}
+
+	@Test
+	void nestedClassMethodImmutable() {
+		ConfigurationMetadata metadata = compile(NestedPropertiesMethodImmutable.class);
+		assertThat(metadata).has(Metadata.withGroup("immutable-nested.nested"));
+		assertThat(metadata).has(Metadata.withProperty("immutable-nested.nested.my-nested-property"));
 	}
 
 	@Test

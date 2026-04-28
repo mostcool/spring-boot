@@ -43,6 +43,7 @@ import org.springframework.boot.context.properties.PropertyMapper;
 import org.springframework.boot.kafka.autoconfigure.KafkaConnectionDetails.Configuration;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties.Jaas;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties.Retry.Topic.Backoff;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties.Template;
 import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
@@ -61,6 +62,7 @@ import org.springframework.kafka.security.jaas.KafkaJaasLoginModuleInitializer;
 import org.springframework.kafka.support.LoggingProducerListener;
 import org.springframework.kafka.support.ProducerListener;
 import org.springframework.kafka.support.converter.RecordMessageConverter;
+import org.springframework.kafka.support.micrometer.KafkaTemplateObservationConvention;
 import org.springframework.kafka.transaction.KafkaTransactionManager;
 import org.springframework.util.StringUtils;
 import org.springframework.util.backoff.BackOff;
@@ -103,14 +105,19 @@ public final class KafkaAutoConfiguration {
 	@ConditionalOnMissingBean(KafkaTemplate.class)
 	KafkaTemplate<?, ?> kafkaTemplate(ProducerFactory<Object, Object> kafkaProducerFactory,
 			ProducerListener<Object, Object> kafkaProducerListener,
-			ObjectProvider<RecordMessageConverter> messageConverter) {
+			ObjectProvider<RecordMessageConverter> messageConverter,
+			ObjectProvider<KafkaTemplateObservationConvention> observationConvention) {
 		PropertyMapper map = PropertyMapper.get();
 		KafkaTemplate<Object, Object> kafkaTemplate = new KafkaTemplate<>(kafkaProducerFactory);
 		messageConverter.ifUnique(kafkaTemplate::setMessageConverter);
+		observationConvention.ifUnique(kafkaTemplate::setObservationConvention);
 		map.from(kafkaProducerListener).to(kafkaTemplate::setProducerListener);
-		map.from(this.properties.getTemplate().getDefaultTopic()).to(kafkaTemplate::setDefaultTopic);
-		map.from(this.properties.getTemplate().getTransactionIdPrefix()).to(kafkaTemplate::setTransactionIdPrefix);
-		map.from(this.properties.getTemplate().isObservationEnabled()).to(kafkaTemplate::setObservationEnabled);
+		Template templateProperties = this.properties.getTemplate();
+		map.from(templateProperties.getDefaultTopic()).to(kafkaTemplate::setDefaultTopic);
+		map.from(templateProperties.getTransactionIdPrefix()).to(kafkaTemplate::setTransactionIdPrefix);
+		map.from(templateProperties.getCloseTimeout()).to(kafkaTemplate::setCloseTimeout);
+		map.from(templateProperties.isAllowNonTransactional()).to(kafkaTemplate::setAllowNonTransactional);
+		map.from(templateProperties.isObservationEnabled()).to(kafkaTemplate::setObservationEnabled);
 		return kafkaTemplate;
 	}
 

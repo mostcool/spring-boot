@@ -16,6 +16,7 @@
 
 package org.springframework.boot.http.converter.autoconfigure;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,11 +53,16 @@ import org.springframework.data.rest.webmvc.config.RepositoryRestMvcConfiguratio
 import org.springframework.hateoas.RepresentationModel;
 import org.springframework.hateoas.mediatype.hal.forms.HalFormsHttpMessageConverter;
 import org.springframework.hateoas.server.mvc.TypeConstrainedJacksonJsonHttpMessageConverter;
+import org.springframework.http.HttpInputMessage;
+import org.springframework.http.HttpOutputMessage;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.AbstractHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverters;
 import org.springframework.http.converter.HttpMessageConverters.ClientBuilder;
 import org.springframework.http.converter.HttpMessageConverters.ServerBuilder;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
@@ -100,6 +106,14 @@ class HttpMessageConvertersAutoConfigurationTests {
 		this.contextRunner.withUserConfiguration(JacksonJsonMapperConfig.class).run((context) -> {
 			assertThat(context).hasSingleBean(JacksonJsonHttpMessageConvertersCustomizer.class);
 			assertConverterIsRegistered(context, JacksonJsonHttpMessageConverter.class);
+		});
+	}
+
+	@Test
+	void jacksonServerCustomizer() {
+		this.contextRunner.withUserConfiguration(CustomJsonConverterConfig.class).run((context) -> {
+			assertConverterIsNotRegistered(context, JacksonJsonHttpMessageConverter.class);
+			assertConverterIsRegistered(context, CustomConverter.class);
 		});
 	}
 
@@ -173,7 +187,7 @@ class HttpMessageConvertersAutoConfigurationTests {
 	@Test
 	@Deprecated(since = "4.0.0", forRemoval = true)
 	@SuppressWarnings("removal")
-	void jackson2ServerAndClientConvertersShouldBeDifferent() {
+	void jackson2ServerAndClientJsonConvertersShouldBeDifferent() {
 		this.contextRunner.withUserConfiguration(Jackson2ObjectMapperConfig.class)
 			.withInitializer(ConditionEvaluationReportLoggingListener.forLogLevel(LogLevel.INFO))
 			.run((context) -> {
@@ -183,6 +197,23 @@ class HttpMessageConvertersAutoConfigurationTests {
 						org.springframework.http.converter.json.MappingJackson2HttpMessageConverter.class);
 				HttpMessageConverter<?> clientConverter = findConverter(getClientConverters(context),
 						org.springframework.http.converter.json.MappingJackson2HttpMessageConverter.class);
+				assertThat(serverConverter).isNotEqualTo(clientConverter);
+			});
+	}
+
+	@Test
+	@Deprecated(since = "4.0.0", forRemoval = true)
+	@SuppressWarnings("removal")
+	void jackson2ServerAndClientXmlConvertersShouldBeDifferent() {
+		this.contextRunner.withUserConfiguration(Jackson2ObjectMapperConfig.class)
+			.withInitializer(ConditionEvaluationReportLoggingListener.forLogLevel(LogLevel.INFO))
+			.run((context) -> {
+				assertThat(context).hasSingleBean(
+						Jackson2HttpMessageConvertersConfiguration.Jackson2XmlMessageConvertersCustomizer.class);
+				HttpMessageConverter<?> serverConverter = findConverter(getServerConverters(context),
+						org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter.class);
+				HttpMessageConverter<?> clientConverter = findConverter(getClientConverters(context),
+						org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter.class);
 				assertThat(serverConverter).isNotEqualTo(clientConverter);
 			});
 	}
@@ -455,16 +486,16 @@ class HttpMessageConvertersAutoConfigurationTests {
 
 	private HttpMessageConverters getClientConverters(ApplicationContext context) {
 		ClientBuilder clientBuilder = HttpMessageConverters.forClient().registerDefaults();
-		context.getBeansOfType(ClientHttpMessageConvertersCustomizer.class)
-			.values()
+		context.getBeanProvider(ClientHttpMessageConvertersCustomizer.class)
+			.orderedStream()
 			.forEach((customizer) -> customizer.customize(clientBuilder));
 		return clientBuilder.build();
 	}
 
 	private HttpMessageConverters getServerConverters(ApplicationContext context) {
 		ServerBuilder serverBuilder = HttpMessageConverters.forServer().registerDefaults();
-		context.getBeansOfType(ServerHttpMessageConvertersCustomizer.class)
-			.values()
+		context.getBeanProvider(ServerHttpMessageConvertersCustomizer.class)
+			.orderedStream()
 			.forEach((customizer) -> customizer.customize(serverBuilder));
 		return serverBuilder.build();
 	}
@@ -499,6 +530,26 @@ class HttpMessageConvertersAutoConfigurationTests {
 		@Bean
 		JsonMapper jsonMapper() {
 			return new JsonMapper();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class CustomJsonConverterConfig {
+
+		@Bean
+		JsonMapper jsonMapper() {
+			return new JsonMapper();
+		}
+
+		@Bean
+		ServerHttpMessageConvertersCustomizer jsonServerCustomizer() {
+			return (configurer) -> configurer.withJsonConverter(new CustomConverter(MediaType.APPLICATION_JSON));
+		}
+
+		@Bean
+		ClientHttpMessageConvertersCustomizer jsonClientCustomizer() {
+			return (configurer) -> configurer.withJsonConverter(new CustomConverter(MediaType.APPLICATION_JSON));
 		}
 
 	}
@@ -545,7 +596,13 @@ class HttpMessageConvertersAutoConfigurationTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
+	@SuppressWarnings("removal")
 	static class Jackson2ObjectMapperConfig {
+
+		@Bean
+		org.springframework.http.converter.json.Jackson2ObjectMapperBuilder objectMapperBuilder() {
+			return new org.springframework.http.converter.json.Jackson2ObjectMapperBuilder();
+		}
 
 		@Bean
 		ObjectMapper objectMapper() {
@@ -636,6 +693,32 @@ class HttpMessageConvertersAutoConfigurationTests {
 		@Bean
 		TypeConstrainedJacksonJsonHttpMessageConverter typeConstrainedConverter() {
 			return new TypeConstrainedJacksonJsonHttpMessageConverter(RepresentationModel.class);
+		}
+
+	}
+
+	@SuppressWarnings("NullAway")
+	static class CustomConverter extends AbstractHttpMessageConverter<Object> {
+
+		CustomConverter(MediaType supportedMediaType) {
+			super(supportedMediaType);
+		}
+
+		@Override
+		protected boolean supports(Class<?> clazz) {
+			return true;
+		}
+
+		@Override
+		protected Object readInternal(Class<?> clazz, HttpInputMessage inputMessage)
+				throws IOException, HttpMessageNotReadableException {
+			return null;
+		}
+
+		@Override
+		protected void writeInternal(Object o, HttpOutputMessage outputMessage)
+				throws IOException, HttpMessageNotWritableException {
+
 		}
 
 	}

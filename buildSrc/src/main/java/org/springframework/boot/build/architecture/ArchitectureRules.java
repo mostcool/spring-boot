@@ -63,6 +63,7 @@ import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Role;
+import org.springframework.lang.CheckReturnValue;
 import org.springframework.util.ResourceUtils;
 
 /**
@@ -75,6 +76,7 @@ import org.springframework.util.ResourceUtils;
  * @author Phillip Webb
  * @author Ngoc Nhan
  * @author Moritz Halbritter
+ * @author Stefano Cordio
  */
 final class ArchitectureRules {
 
@@ -156,6 +158,26 @@ final class ArchitectureRules {
 					+ "the method signature from being loaded. Such condition need to be placed"
 					+ " on a @Configuration class, allowing the condition to back off before the type is loaded.")
 			.allowEmptyShould(true);
+	}
+
+	static ArchRule allCustomAssertionMethodsNotReturningSelfShouldBeAnnotatedWithCheckReturnValue() {
+		return ArchRuleDefinition.methods()
+			.that()
+			.areDeclaredInClassesThat()
+			.implement("org.assertj.core.api.Assert")
+			.and()
+			.arePublic()
+			.and()
+			.doNotHaveModifier(JavaModifier.BRIDGE)
+			.and(doNotReturnSelfType())
+			.should()
+			.beAnnotatedWith(CheckReturnValue.class)
+			.allowEmptyShould(true);
+	}
+
+	private static DescribedPredicate<JavaMethod> doNotReturnSelfType() {
+		return DescribedPredicate.describe("do not return self type",
+				(method) -> !method.getRawReturnType().equals(method.getOwner()));
 	}
 
 	private static ArchRule allPackagesShouldBeFreeOfTangles() {
@@ -281,12 +303,6 @@ final class ArchitectureRules {
 			String annotation) {
 		return methodsThatAreAnnotatedWith(annotation)
 			.should(notSpecifyOnlyATypeThatIsTheSameAsTheMethodReturnType(annotation))
-			.allowEmptyShould(true);
-	}
-
-	static ArchRule packagesShouldBeAnnotatedWithNullMarked(Set<String> ignoredPackages) {
-		return ArchRuleDefinition.all(packages((javaPackage) -> !ignoredPackages.contains(javaPackage.getName())))
-			.should(beAnnotatedWithNullMarked())
 			.allowEmptyShould(true);
 	}
 
@@ -583,18 +599,6 @@ final class ArchitectureRules {
 			@Override
 			public Iterable<JavaPackage> doTransform(JavaClasses collection) {
 				return collection.stream().map(JavaClass::getPackage).filter(filter).collect(Collectors.toSet());
-			}
-		};
-	}
-
-	private static ArchCondition<JavaPackage> beAnnotatedWithNullMarked() {
-		return new ArchCondition<>("be annotated with @NullMarked") {
-			@Override
-			public void check(JavaPackage item, ConditionEvents events) {
-				if (!item.isAnnotatedWith("org.jspecify.annotations.NullMarked")) {
-					String message = String.format("Package %s is not annotated with @NullMarked", item.getName());
-					events.add(SimpleConditionEvent.violated(item, message));
-				}
 			}
 		};
 	}

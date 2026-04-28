@@ -98,7 +98,10 @@ Any javadoc:org.springframework.http.converter.HttpMessageConverter[] bean that 
 You can also override default converters in the same way.
 
 If you need to add or customize converters, you can declare one or more javadoc:org.springframework.boot.http.converter.autoconfigure.ClientHttpMessageConvertersCustomizer[] or
-javadoc:org.springframework.boot.http.converter.autoconfigure.ServerHttpMessageConvertersCustomizer[] as beans, as shown in the following listing:
+javadoc:org.springframework.boot.http.converter.autoconfigure.ServerHttpMessageConvertersCustomizer[] as beans. There, you can choose whether converter instances should be added
+before default ones (`addCustomConverter`) or if they should override a specific default converter (like `withJsonConverter`).
+
+See the following listing for an example:
 
 include-code::MyHttpMessageConvertersConfiguration[]
 
@@ -339,8 +342,8 @@ By default, Spring Boot provides an `/error` mapping that handles all errors in 
 For machine clients, it produces a JSON response with details of the error, the HTTP status, and the exception message.
 For browser clients, there is a "`whitelabel`" error view that renders the same data in HTML format (to customize it, add a javadoc:org.springframework.web.servlet.View[] that resolves to `error`).
 
-There are a number of `server.error` properties that can be set if you want to customize the default error handling behavior.
-See the xref:appendix:application-properties/index.adoc#appendix.application-properties.server[Server Properties] section of the Appendix.
+There are a number of `spring.web.error` properties that can be set if you want to customize the default error handling behavior.
+See the xref:appendix:application-properties/index.adoc#appendix.application-properties.web[Web Properties] section of the Appendix.
 
 To replace the default behavior completely, you can implement javadoc:org.springframework.boot.webmvc.error.ErrorController[] and register a bean definition of that type or add a bean of type javadoc:org.springframework.boot.webmvc.error.ErrorAttributes[] to use the existing mechanism but replace the contents.
 
@@ -471,8 +474,8 @@ The same `@Controller` path can be mapped multiple times to support different ve
 
 For more details see {url-spring-framework-docs}/web/webmvc/mvc-controller/ann-requestmapping.html#mvc-ann-requestmapping-version[Spring Framework's reference documentation].
 
-One mappings have been added, you additionally need to configure Spring MVC so that it is able to use any version information sent with a request.
-Typically, versions are sent as HTTP headers, query parameters or as part of the path.
+Once mappings have been added, you additionally need to configure Spring MVC so that it is able to use any version information sent with a request.
+Typically, versions are sent as HTTP headers, query parameters, media type parameters, or as part of the path.
 
 To configure Spring MVC, you can either use a javadoc:org.springframework.web.servlet.config.annotation.WebMvcConfigurer[] bean and override the `configureApiVersioning(...)` method, or you can use properties.
 
@@ -487,6 +490,8 @@ spring:
       use:
         header: X-Version
 ----
+
+NOTE: If your setup requires multiple strategies, such as header and query parameter, consider declaring the order programmatically by overriding the `configureApiVersioning` method.
 
 For more complete control, you can also define javadoc:org.springframework.web.accept.ApiVersionResolver[], javadoc:org.springframework.web.accept.ApiVersionParser[] and javadoc:org.springframework.web.accept.ApiVersionDeprecationHandler[] beans which will be injected into the auto-configured Spring MVC configuration.
 
@@ -742,3 +747,5 @@ JSPs are not supported when using an executable jar.
 
 * Creating a custom `error.jsp` page does not override the default view for xref:web/servlet.adoc#web.servlet.spring-mvc.error-handling[error handling].
   xref:web/servlet.adoc#web.servlet.spring-mvc.error-handling.error-pages[Custom error pages] should be used instead.
+
+* If you run your application using `mvn spring-boot:run` or `gradle bootRun` and you deviate from the standard `src/main/webapp` directory structure you may need to set a `WAR_SOURCE_DIRECTORY` environment variable so that Spring Boot can find your JSPs.

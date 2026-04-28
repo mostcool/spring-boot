@@ -67,23 +67,24 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.TestAutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.hibernate.SpringJtaPlatform;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfigurationTests.JpaUsingApplicationListenerConfiguration.EventCapturingApplicationListener;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaConfiguration.HibernateRuntimeHints;
+import org.springframework.boot.hibernate.autoconfigure.mapping.NonAnnotatedEntity;
+import org.springframework.boot.hibernate.autoconfigure.test.city.City;
+import org.springframework.boot.hibernate.autoconfigure.test.country.Country;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.XADataSourceAutoConfiguration;
 import org.springframework.boot.jpa.EntityManagerFactoryBuilder;
+import org.springframework.boot.jpa.autoconfigure.BootstrapExecutorRequiredException;
 import org.springframework.boot.jpa.autoconfigure.EntityManagerFactoryBuilderCustomizer;
 import org.springframework.boot.jpa.autoconfigure.JpaBaseConfiguration;
 import org.springframework.boot.jpa.autoconfigure.JpaProperties;
-import org.springframework.boot.jpa.autoconfigure.hibernate.mapping.NonAnnotatedEntity;
-import org.springframework.boot.jpa.autoconfigure.test.city.City;
-import org.springframework.boot.jpa.autoconfigure.test.country.Country;
 import org.springframework.boot.liquibase.autoconfigure.LiquibaseAutoConfiguration;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -103,12 +104,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.SQLExceptionTranslator;
 import org.springframework.jdbc.support.SQLStateSQLExceptionTranslator;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.hibernate.ConfigurableJtaPlatform;
 import org.springframework.orm.jpa.persistenceunit.DefaultPersistenceUnitManager;
 import org.springframework.orm.jpa.persistenceunit.ManagedClassNameFilter;
 import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
@@ -126,7 +129,7 @@ import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.Mockito.mock;
 
 /**
- * Base for JPA tests and tests for {@link JpaBaseConfiguration}.
+ * Test for {@link HibernateJpaAutoConfiguration} and {@link JpaBaseConfiguration}.
  *
  * @author Phillip Webb
  * @author Dave Syer
@@ -248,6 +251,59 @@ class HibernateJpaAutoConfigurationTests {
 	}
 
 	@Test
+	void whenBackgroundBootstrapingAndSingleAsyncTaksExecutorConfiguresBackgroundExecutor() {
+		this.contextRunner.withPropertyValues("spring.jpa.bootstrap=async")
+			.withUserConfiguration(SingleAsyncTaskExecutorConfiguration.class)
+			.run((context) -> assertThat(
+					context.getBean(LocalContainerEntityManagerFactoryBean.class).getBootstrapExecutor())
+				.isInstanceOf(SimpleAsyncTaskExecutor.class));
+	}
+
+	@Test
+	void whenBackgroundBootstrapingAndApplicationTaksExecutorConfiguresBackgroundExecutor() {
+		this.contextRunner.withPropertyValues("spring.jpa.bootstrap=async")
+			.withUserConfiguration(MultipleAsyncTaskExecutorsConfiguration.class,
+					ApplicationTaskExecutorConfiguration.class)
+			.run((context) -> assertThat(
+					context.getBean(LocalContainerEntityManagerFactoryBean.class).getBootstrapExecutor())
+				.isSameAs(context.getBean(TaskExecutionAutoConfiguration.APPLICATION_TASK_EXECUTOR_BEAN_NAME)));
+	}
+
+	@Test
+	void whenBackgroundBootstrapingAndMissingTaksExecutorThrowsException() {
+		this.contextRunner.withPropertyValues("spring.jpa.bootstrap=async")
+			.run((context) -> assertThat(context).getFailure()
+				.rootCause()
+				.isInstanceOf(BootstrapExecutorRequiredException.class)
+				.message()
+				.contains("bootstrap executor is required when 'spring.jpa.bootstrap' is set to 'async'"));
+	}
+
+	@Test
+	void whenBackgroundBootstrapingAndMultipleTaksExecutorThrowsException() {
+		this.contextRunner.withPropertyValues("spring.jpa.bootstrap=async")
+			.withUserConfiguration(MultipleAsyncTaskExecutorsConfiguration.class)
+			.run((context) -> assertThat(context).getFailure()
+				.rootCause()
+				.isInstanceOf(BootstrapExecutorRequiredException.class)
+				.message()
+				.contains("bootstrap executor is required when 'spring.jpa.bootstrap' is set to 'async'"));
+	}
+
+	@Test
+	void whenBackgroundBootstrapingAndCustomizedBackgroundExecutorThrowsException() {
+		this.contextRunner.withPropertyValues("spring.jpa.bootstrap=async")
+			.withBean(EntityManagerFactoryBuilderCustomizer.class, this::bootstrapExecutorCustomizer)
+			.run((context) -> assertThat(
+					context.getBean(LocalContainerEntityManagerFactoryBean.class).getBootstrapExecutor())
+				.isInstanceOf(SimpleAsyncTaskExecutor.class));
+	}
+
+	private EntityManagerFactoryBuilderCustomizer bootstrapExecutorCustomizer() {
+		return (builder) -> builder.setBootstrapExecutor(new SimpleAsyncTaskExecutor());
+	}
+
+	@Test
 	void customJpaProperties() {
 		this.contextRunner
 			.withPropertyValues("spring.jpa.properties.a:b", "spring.jpa.properties.a.b:c", "spring.jpa.properties.c:d")
@@ -347,6 +403,20 @@ class HibernateJpaAutoConfigurationTests {
 				assertThat(persistenceUnitInfo).isNotNull();
 				assertThat(persistenceUnitInfo.getManagedClassNames())
 					.contains("customized.attribute.converter.class.name");
+			});
+	}
+
+	@Test
+	void customPersistenceUnitProcessorsAddedByServeralContributors() {
+		this.contextRunner.withUserConfiguration(TestConfigurationWithMultipleCustomPersistenceUnitPostProcessors.class)
+			.run((context) -> {
+				LocalContainerEntityManagerFactoryBean entityManagerFactoryBean = context
+					.getBean(LocalContainerEntityManagerFactoryBean.class);
+				PersistenceUnitInfo persistenceUnitInfo = entityManagerFactoryBean.getPersistenceUnitInfo();
+				assertThat(persistenceUnitInfo).isNotNull();
+				assertThat(persistenceUnitInfo.getManagedClassNames()).contains(
+						"customized.attribute.converter.class.name",
+						"customized.attribute.converter.class.anotherName");
 			});
 	}
 
@@ -533,7 +603,7 @@ class HibernateJpaAutoConfigurationTests {
 	@Test
 	void jtaDefaultPlatform() {
 		this.contextRunner.withUserConfiguration(JtaTransactionManagerConfiguration.class)
-			.run(assertJtaPlatform(SpringJtaPlatform.class));
+			.run(assertJtaPlatform(ConfigurableJtaPlatform.class));
 	}
 
 	@Test
@@ -640,7 +710,7 @@ class HibernateJpaAutoConfigurationTests {
 									 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 									 xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence/orm https://www.oracle.com/webfolder/technetwork/jsc/xml/ns/persistence/orm_2_1.xsd"
 									 version="2.1">
-						<entity class="org.springframework.boot.jpa.autoconfigure.hibernate.mapping.NonAnnotatedEntity">
+						<entity class="org.springframework.boot.hibernate.autoconfigure.mapping.NonAnnotatedEntity">
 							<table name="NON_ANNOTATED"/>
 							<attributes>
 								<id name="id">
@@ -724,6 +794,13 @@ class HibernateJpaAutoConfigurationTests {
 	}
 
 	@Test
+	void beanContainerIsConfiguredByDefault() {
+		this.contextRunner.run((context) -> assertThat(
+				context.getBean(LocalContainerEntityManagerFactoryBean.class).getJpaPropertyMap())
+			.containsKey(ManagedBeanSettings.BEAN_CONTAINER));
+	}
+
+	@Test
 	@WithResource(name = "city.sql",
 			content = "INSERT INTO CITY (ID, NAME, STATE, COUNTRY, MAP) values (2000, 'Washington', 'DC', 'US', 'Google')")
 	void eventListenerCanBeRegisteredAsBeans() {
@@ -737,12 +814,6 @@ class HibernateJpaAutoConfigurationTests {
 				assertThat(context).hasSingleBean(City.class);
 				assertThat(context.getBean(City.class).getName()).isEqualTo("Washington");
 			});
-	}
-
-	@Test
-	void hibernatePropertiesCustomizerCanDisableBeanContainer() {
-		this.contextRunner.withUserConfiguration(DisableBeanContainerConfiguration.class)
-			.run((context) -> assertThat(context).doesNotHaveBean(City.class));
 	}
 
 	@Test
@@ -1149,6 +1220,24 @@ class HibernateJpaAutoConfigurationTests {
 
 	}
 
+	@Configuration(proxyBeanMethods = false)
+	@TestAutoConfigurationPackage(HibernateJpaAutoConfigurationTests.class)
+	static class TestConfigurationWithMultipleCustomPersistenceUnitPostProcessors {
+
+		@Bean
+		EntityManagerFactoryBuilderCustomizer entityManagerFactoryBuilderCustomizer() {
+			return (builder) -> builder.addPersistenceUnitPostProcessors(
+					(pui) -> pui.addManagedClassName("customized.attribute.converter.class.name"));
+		}
+
+		@Bean
+		EntityManagerFactoryBuilderCustomizer anotherEntityManagerFactoryBuilderCustomizer() {
+			return (builder) -> builder.addPersistenceUnitPostProcessors(
+					(pui) -> pui.addManagedClassName("customized.attribute.converter.class.anotherName"));
+		}
+
+	}
+
 	static class CustomJpaTransactionManager extends JpaTransactionManager {
 
 	}
@@ -1222,16 +1311,6 @@ class HibernateJpaAutoConfigurationTests {
 				hibernateProperties.put("hibernate.physical_naming_strategy", this.physicalNamingStrategy);
 				hibernateProperties.put("hibernate.implicit_naming_strategy", this.implicitNamingStrategy);
 			};
-		}
-
-	}
-
-	@Configuration(proxyBeanMethods = false)
-	static class DisableBeanContainerConfiguration {
-
-		@Bean
-		HibernatePropertiesCustomizer disableBeanContainerHibernatePropertiesCustomizer() {
-			return (hibernateProperties) -> hibernateProperties.remove(ManagedBeanSettings.BEAN_CONTAINER);
 		}
 
 	}
@@ -1356,6 +1435,41 @@ class HibernateJpaAutoConfigurationTests {
 			jtaTransactionManager.setUserTransaction(mock(UserTransaction.class));
 			jtaTransactionManager.setTransactionManager(mock(TransactionManager.class));
 			return jtaTransactionManager;
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class SingleAsyncTaskExecutorConfiguration {
+
+		@Bean
+		SimpleAsyncTaskExecutor exampleTaskExecutor() {
+			return new SimpleAsyncTaskExecutor();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class MultipleAsyncTaskExecutorsConfiguration {
+
+		@Bean
+		SimpleAsyncTaskExecutor exampleTaskExecutor1() {
+			return new SimpleAsyncTaskExecutor();
+		}
+
+		@Bean
+		SimpleAsyncTaskExecutor exampleTaskExecutor2() {
+			return new SimpleAsyncTaskExecutor();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class ApplicationTaskExecutorConfiguration {
+
+		@Bean
+		SimpleAsyncTaskExecutor applicationTaskExecutor() {
+			return new SimpleAsyncTaskExecutor();
 		}
 
 	}

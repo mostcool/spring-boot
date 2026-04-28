@@ -70,10 +70,8 @@ tasks.named('compileKotlin', KotlinCompilationTask.class) {
     javaSources.from = []
 }
 
-architectureCheck {
-	nullMarked {
-		enabled = false
-	}
+nullability {
+	requireExplicitNullMarking = false
 }
 
 plugins.withType(EclipsePlugin) {
@@ -98,6 +96,7 @@ dependencies {
 	implementation(project(path: ":module:spring-boot-actuator-autoconfigure"))
 	implementation(project(path: ":module:spring-boot-amqp"))
 	implementation(project(path: ":module:spring-boot-cache"))
+	implementation(project(path: ":module:spring-boot-cache-test"))
 	implementation(project(path: ":module:spring-boot-data-cassandra"))
 	implementation(project(path: ":module:spring-boot-data-cassandra-test"))
 	implementation(project(path: ":module:spring-boot-data-couchbase-test"))
@@ -111,6 +110,9 @@ dependencies {
 	implementation(project(path: ":module:spring-boot-data-redis-test"))
 	implementation(project(path: ":module:spring-boot-devtools"))
 	implementation(project(path: ":module:spring-boot-graphql-test"))
+	implementation(project(path: ":module:spring-boot-grpc-client"))
+	implementation(project(path: ":module:spring-boot-grpc-server"))
+	implementation(project(path: ":module:spring-boot-grpc-test"))
 	implementation(project(path: ":module:spring-boot-health"))
 	implementation(project(path: ":module:spring-boot-hibernate"))
 	implementation(project(path: ":module:spring-boot-http-converter"))
@@ -119,6 +121,7 @@ dependencies {
 	implementation(project(path: ":module:spring-boot-jackson"))
 	implementation(project(path: ":module:spring-boot-jdbc"))
 	implementation(project(path: ":module:spring-boot-jdbc-test"))
+	implementation(project(path: ":module:spring-boot-jetty"))
 	implementation(project(path: ":module:spring-boot-jooq-test"))
 	implementation(project(path: ":module:spring-boot-jpa"))
 	implementation(project(path: ":module:spring-boot-jms"))
@@ -134,6 +137,7 @@ dependencies {
 	implementation(project(path: ":module:spring-boot-resttestclient"))
 	implementation(project(path: ":module:spring-boot-security"))
 	implementation(project(path: ":module:spring-boot-tomcat"))
+	implementation(project(path: ":module:spring-boot-web-server-test"))
 	implementation(project(path: ":module:spring-boot-webclient"))
 	implementation(project(path: ":module:spring-boot-webclient-test"))
 	implementation(project(path: ":module:spring-boot-webflux"))
@@ -146,6 +150,8 @@ dependencies {
 	implementation("ch.qos.logback:logback-classic")
 	implementation("com.redis:testcontainers-redis")
 	implementation("com.zaxxer:HikariCP")
+	implementation("io.grpc:grpc-stub")
+	implementation("io.grpc:grpc-netty")
 	implementation("io.micrometer:micrometer-jakarta9")
 	implementation("io.micrometer:micrometer-tracing")
 	implementation("io.micrometer:micrometer-registry-graphite")
@@ -162,7 +168,9 @@ dependencies {
 	implementation("jakarta.validation:jakarta.validation-api")
 	implementation("org.apache.httpcomponents.client5:httpclient5")
 	implementation("org.apache.commons:commons-dbcp2")
-	implementation("org.apache.kafka:kafka-streams")
+	implementation("org.apache.kafka:kafka-streams") {
+		exclude group: "org.lz4", module: "lz4-java"
+	}
 	implementation("org.apache.logging.log4j:log4j-to-slf4j")
 	implementation("org.apache.tomcat.embed:tomcat-embed-core")
 	implementation("org.assertj:assertj-core")
@@ -209,7 +217,9 @@ dependencies {
 	implementation("org.springframework.data:spring-data-r2dbc")
 	implementation("org.springframework.graphql:spring-graphql")
 	implementation("org.springframework.graphql:spring-graphql-test")
-	implementation("org.springframework.kafka:spring-kafka")
+	implementation("org.springframework.kafka:spring-kafka") {
+		exclude group: "org.lz4", module: "lz4-java"
+	}
 	implementation("org.springframework.kafka:spring-kafka-test")
 	implementation("org.springframework.pulsar:spring-pulsar")
 	implementation("org.springframework.restdocs:spring-restdocs-mockmvc")
@@ -231,6 +241,7 @@ dependencies {
 	javadocMacros(project(":module:spring-boot-activemq"))
 	javadocMacros(project(":module:spring-boot-artemis"))
 	javadocMacros(project(":module:spring-boot-batch"))
+	javadocMacros(project(":module:spring-boot-batch-data-mongodb"))
 	javadocMacros(project(":module:spring-boot-batch-jdbc"))
 	javadocMacros(project(":module:spring-boot-cache-test"))
 	javadocMacros(project(":module:spring-boot-data-r2dbc-test"))
@@ -281,7 +292,7 @@ dependencies {
 	javadocMacros("jakarta.json.bind:jakarta.json.bind-api")
 	javadocMacros("jakarta.mail:jakarta.mail-api")
 	javadocMacros("jakarta.websocket:jakarta.websocket-api")
-	javadocMacros("org.apache.activemq:artemis-jakarta-server")
+	javadocMacros("org.apache.artemis:artemis-jakarta-server")
 	javadocMacros("org.apache.logging.log4j:log4j-core")
 	javadocMacros("org.eclipse.jetty:jetty-client")
 	javadocMacros("org.infinispan:infinispan-core")
@@ -410,9 +421,13 @@ project.rootProject.gradle.projectsEvaluated {
 		.findAll { !it.name.startsWith('spring-boot-starter') }
 		.each { javadocProject ->
 			dependencies {
-				javadoc(project(javadocProject.path))
+				javadoc(project(javadocProject.path)) {
+					exclude group: "org.lz4", module: "lz4-java"
+				}
 				if (javadocProject.plugins.hasPlugin(OptionalDependenciesPlugin)) {
-					javadoc(project(path: javadocProject.path, configuration: 'optional'))
+					javadoc(project(path: javadocProject.path, configuration: 'optional')) {
+						exclude group: "org.lz4", module: "lz4-java"
+					}
 				}
 			}
 		}

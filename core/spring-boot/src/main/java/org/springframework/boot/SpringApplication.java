@@ -275,7 +275,7 @@ public class SpringApplication {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "'primarySources' must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
-		this.properties.setWebApplicationType(WebApplicationType.deduceFromClasspath());
+		this.properties.setWebApplicationType(WebApplicationType.deduce());
 		this.bootstrapRegistryInitializers = new ArrayList<>(
 				getSpringFactoriesInstances(BootstrapRegistryInitializer.class));
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
@@ -419,9 +419,6 @@ public class SpringApplication {
 	}
 
 	private void addAotGeneratedInitializerIfNecessary(List<ApplicationContextInitializer<?>> initializers) {
-		if (NativeDetector.inNativeImage()) {
-			NativeImageRequirementsException.throwIfNotMet();
-		}
 		if (AotDetector.useGeneratedArtifacts()) {
 			List<ApplicationContextInitializer<?>> aotInitializers = new ArrayList<>(
 					initializers.stream().filter(AotApplicationContextInitializer.class::isInstance).toList());
@@ -435,6 +432,9 @@ public class SpringApplication {
 			}
 			initializers.removeAll(aotInitializers);
 			initializers.addAll(0, aotInitializers);
+		}
+		if (NativeDetector.inNativeImage()) {
+			NativeImageRequirementsException.throwIfNotMet();
 		}
 	}
 

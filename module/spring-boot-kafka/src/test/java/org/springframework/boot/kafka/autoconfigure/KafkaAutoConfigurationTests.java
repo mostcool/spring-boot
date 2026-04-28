@@ -51,6 +51,7 @@ import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.ssl.SslAutoConfiguration;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties.Retry;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties.Template;
 import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.ssl.SslStoreBundle;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -94,6 +95,8 @@ import org.springframework.kafka.support.converter.BatchMessageConverter;
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter;
 import org.springframework.kafka.support.converter.MessagingMessageConverter;
 import org.springframework.kafka.support.converter.RecordMessageConverter;
+import org.springframework.kafka.support.micrometer.KafkaTemplateObservation.DefaultKafkaTemplateObservationConvention;
+import org.springframework.kafka.support.micrometer.KafkaTemplateObservationConvention;
 import org.springframework.kafka.transaction.KafkaAwareTransactionManager;
 import org.springframework.kafka.transaction.KafkaTransactionManager;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -738,35 +741,62 @@ class KafkaAutoConfigurationTests {
 		});
 	}
 
+	@Test
+	void defaultTemplateProperties() {
+		this.contextRunner.run((context) -> {
+			KafkaTemplate<?, ?> kafkaTemplate = context.getBean(KafkaTemplate.class);
+			Template defaultTemplateProperties = new KafkaProperties().getTemplate();
+			assertThat(kafkaTemplate.getDefaultTopic()).isEqualTo(defaultTemplateProperties.getDefaultTopic());
+			assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("transactionIdPrefix",
+					defaultTemplateProperties.getTransactionIdPrefix());
+			assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("closeTimeout",
+					defaultTemplateProperties.getCloseTimeout());
+			assertThat(kafkaTemplate.isAllowNonTransactional())
+				.isEqualTo(defaultTemplateProperties.isAllowNonTransactional());
+			assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("observationEnabled",
+					defaultTemplateProperties.isObservationEnabled());
+		});
+	}
+
+	@Test
+	void templateProperties() {
+		this.contextRunner.withPropertyValues("spring.kafka.template.default-topic=testTopic",
+				"spring.kafka.template.transaction-id-prefix=txOverride", "spring.kafka.template.close-timeout=3m",
+				"spring.kafka.template.allow-non-transactional=true", "spring.kafka.template.observation-enabled=true")
+			.run((context) -> {
+				KafkaTemplate<?, ?> kafkaTemplate = context.getBean(KafkaTemplate.class);
+				assertThat(kafkaTemplate.getDefaultTopic()).isEqualTo("testTopic");
+				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("transactionIdPrefix", "txOverride");
+				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("closeTimeout", Duration.ofMinutes(3));
+				assertThat(kafkaTemplate.isAllowNonTransactional()).isTrue();
+				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("observationEnabled", true);
+			});
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	void listenerProperties() {
 		this.contextRunner
-			.withPropertyValues("spring.kafka.template.default-topic=testTopic",
-					"spring.kafka.template.transaction-id-prefix=txOverride", "spring.kafka.listener.ack-mode=MANUAL",
-					"spring.kafka.listener.client-id=client", "spring.kafka.listener.ack-count=123",
-					"spring.kafka.listener.ack-time=456", "spring.kafka.listener.concurrency=3",
-					"spring.kafka.listener.poll-timeout=2000", "spring.kafka.listener.no-poll-threshold=2.5",
-					"spring.kafka.listener.type=batch", "spring.kafka.listener.idle-between-polls=1s",
-					"spring.kafka.listener.idle-event-interval=1s",
+			.withPropertyValues("spring.kafka.listener.ack-mode=MANUAL", "spring.kafka.listener.client-id=client",
+					"spring.kafka.listener.ack-count=123", "spring.kafka.listener.ack-time=456",
+					"spring.kafka.listener.concurrency=3", "spring.kafka.listener.poll-timeout=2000",
+					"spring.kafka.listener.no-poll-threshold=2.5", "spring.kafka.listener.type=batch",
+					"spring.kafka.listener.idle-between-polls=1s", "spring.kafka.listener.idle-event-interval=1s",
 					"spring.kafka.listener.idle-partition-event-interval=1s",
 					"spring.kafka.listener.monitor-interval=45", "spring.kafka.listener.log-container-config=true",
 					"spring.kafka.listener.missing-topics-fatal=true", "spring.kafka.jaas.enabled=true",
 					"spring.kafka.listener.immediate-stop=true", "spring.kafka.producer.transaction-id-prefix=foo",
 					"spring.kafka.jaas.login-module=foo", "spring.kafka.jaas.control-flag=REQUISITE",
 					"spring.kafka.jaas.options.useKeyTab=true", "spring.kafka.listener.async-acks=true",
-					"spring.kafka.template.observation-enabled=true", "spring.kafka.listener.observation-enabled=true")
+					"spring.kafka.listener.observation-enabled=true")
 			.run((context) -> {
 				DefaultKafkaProducerFactory<?, ?> producerFactory = context.getBean(DefaultKafkaProducerFactory.class);
 				DefaultKafkaConsumerFactory<?, ?> consumerFactory = context.getBean(DefaultKafkaConsumerFactory.class);
 				KafkaTemplate<?, ?> kafkaTemplate = context.getBean(KafkaTemplate.class);
+				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("producerFactory", producerFactory);
 				AbstractKafkaListenerContainerFactory<?, ?, ?> kafkaListenerContainerFactory = (AbstractKafkaListenerContainerFactory<?, ?, ?>) context
 					.getBean(KafkaListenerContainerFactory.class);
 				assertThat(kafkaTemplate.getMessageConverter()).isInstanceOf(MessagingMessageConverter.class);
-				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("producerFactory", producerFactory);
-				assertThat(kafkaTemplate.getDefaultTopic()).isEqualTo("testTopic");
-				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("transactionIdPrefix", "txOverride");
-				assertThat(kafkaTemplate).hasFieldOrPropertyWithValue("observationEnabled", true);
 				assertThat(kafkaListenerContainerFactory.getConsumerFactory()).isEqualTo(consumerFactory);
 				ContainerProperties containerProperties = kafkaListenerContainerFactory.getContainerProperties();
 				assertThat(containerProperties.getAckMode()).isEqualTo(AckMode.MANUAL);
@@ -1013,6 +1043,15 @@ class KafkaAutoConfigurationTests {
 		assertThat(RuntimeHintsPredicates.reflection()
 			.onType(SslBundleSslEngineFactory.class)
 			.withMemberCategories(MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS)).accepts(runtimeHints);
+	}
+
+	@Test
+	void shouldConfigureObservationConvention() {
+		KafkaTemplateObservationConvention convention = new DefaultKafkaTemplateObservationConvention();
+		this.contextRunner.withBean(KafkaTemplateObservationConvention.class, () -> convention).run((context) -> {
+			KafkaTemplate<?, ?> template = context.getBean(KafkaTemplate.class);
+			assertThat(template).hasFieldOrPropertyWithValue("observationConvention", convention);
+		});
 	}
 
 	private KafkaConnectionDetails kafkaConnectionDetails() {

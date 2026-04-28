@@ -2,8 +2,8 @@ name: Release Milestone
 on:
   push:
     tags:
-      - v4.0.0-M[0-9]
-      - v4.0.0-RC[0-9]
+      - v4.1.0-M[0-9]
+      - v4.1.0-RC[0-9]
 permissions:
   contents: read
 concurrency:
@@ -76,7 +76,7 @@ jobs:
     runs-on: ${{ vars.UBUNTU_SMALL || 'ubuntu-latest' }}
     steps:
       - name: Set up JFrog CLI
-        uses: jfrog/setup-jfrog-cli@5b06f730cc5a6f55d78b30753f8583454b08c0aa # v4.8.1
+        uses: jfrog/setup-jfrog-cli@1641575d87647fb969c0545f0b6a76873e328b7c # v5.0.0
         env:
           JF_ENV_SPRING: ${{ secrets.JF_ARTIFACTORY_SPRING }}
       - name: Promote build
@@ -102,7 +102,7 @@ jobs:
     name: Trigger Docs Build
     needs:
       - build-and-stage-release
-      - sync-to-maven-central
+      - promote-release
     permissions:
       actions: write
     runs-on: ubuntu-latest

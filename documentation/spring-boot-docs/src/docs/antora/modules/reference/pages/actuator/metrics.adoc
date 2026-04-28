@@ -174,9 +174,13 @@ management:
 
 Dynatrace offers two metrics ingest APIs, both of which are implemented for {url-micrometer-docs-implementations}/dynatrace[Micrometer].
 You can find the Dynatrace documentation on Micrometer metrics ingest {url-dynatrace-docs-shortlink}/micrometer-metrics-ingest[here].
+
 Configuration properties in the `v1` namespace apply only when exporting to the {url-dynatrace-docs-shortlink}/api-metrics[Timeseries v1 API].
+Support for the V1 API is deprecated.
+
 Configuration properties in the `v2` namespace apply only when exporting to the {url-dynatrace-docs-shortlink}/api-metrics-v2-post-datapoints[Metrics v2 API].
-Note that this integration can export only to either the `v1` or `v2` version of the API at a time, with `v2` being preferred.
+
+Note that this integration can export only to either the `v1` or `v2` version of the API at a time, with `v2` being strongly recommended due to the deprecation of the v1 API.
 If the `device-id` (required for v1 but not used in v2) is set in the `v1` namespace, metrics are exported to the `v1` endpoint.
 Otherwise, `v2` is assumed.
 
@@ -264,13 +268,13 @@ management:
 
 
 [[actuator.metrics.export.dynatrace.v1-api]]
-==== v1 API (Legacy)
+==== v1 API (Deprecated)
 
 The Dynatrace v1 API metrics registry pushes metrics to the configured URI periodically by using the {url-dynatrace-docs-shortlink}/api-metrics[Timeseries v1 API].
 For backwards-compatibility with existing setups, when `device-id` is set (required for v1, but not used in v2), metrics are exported to the Timeseries v1 endpoint.
 To export metrics to {url-micrometer-docs-implementations}/dynatrace[Dynatrace], your API token, device ID, and URI must be provided:
 
-[configprops,yaml]
+[configprops%novalidate,yaml]
 ----
 management:
   dynatrace:
@@ -523,6 +527,12 @@ Custom headers, for example for authentication, can also be provided using confi
 
 If an `OtlpMetricsSender` bean is available, it will be configured on the `OtlpMeterRegistry` that Spring Boot auto-configures.
 
+https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exemplars[OTLP Exemplars] are also supported.
+To enable this feature, an javadoc:io.micrometer.registry.otlp.ExemplarContextProvider[] bean should be present.
+If you use xref:actuator/tracing.adoc[Micrometer Tracing], this will be auto-configured for you.
+By default, only sampled traces are included as exemplars.
+You can control this behavior using the configprop:management.tracing.exemplars.include[] property.
+
 
 
 [[actuator.metrics.export.prometheus]]
@@ -548,6 +558,9 @@ https://prometheus.io/docs/prometheus/latest/feature_flags/#exemplars-storage[Pr
 To enable this feature, a javadoc:io.prometheus.metrics.tracer.common.SpanContext[] bean should be present.
 If you're using the deprecated Prometheus simpleclient support and want to enable that feature, a javadoc:io.prometheus.client.exemplars.tracer.common.SpanContextSupplier[] bean should be present.
 If you use {url-micrometer-tracing-docs}[Micrometer Tracing], this will be auto-configured for you, but you can always create your own if you want.
+By default, only sampled traces are included as exemplars.
+You can control this behavior using the configprop:management.tracing.exemplars.include[] property.
+The value `all` is not supported with Prometheus.
 Please check the https://prometheus.io/docs/prometheus/latest/feature_flags/#exemplars-storage[Prometheus Docs], since this feature needs to be explicitly enabled on Prometheus' side, and it is only supported using the https://github.com/OpenObservability/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#exemplars[OpenMetrics] format.
 
 For ephemeral or batch jobs that may not exist long enough to be scraped, you can use https://github.com/prometheus/pushgateway[Prometheus Pushgateway] support to expose the metrics to Prometheus.
@@ -802,7 +815,7 @@ To customize the tags, provide a javadoc:org.springframework.context.annotation.
 === SSL Bundle Metrics
 
 Spring Boot Actuator publishes expiry metrics about SSL bundles.
-The metric `ssl.chain.expiry` gauges the expiry date of each certificate chain in seconds.
+The metric `ssl.chain.expiry` gauges the expiry date of each certificate chain in key stores and trust stores in seconds.
 This number will be negative if the chain has already expired.
 This metric is tagged with the following information:
 
@@ -817,6 +830,9 @@ This metric is tagged with the following information:
 
 | `chain`
 | The name of the certificate chain.
+
+| `source`
+| Whether the certificate chain comes from the key store (`keystore`) or trust store (`truststore`)
 |===
 
 
@@ -1096,7 +1112,7 @@ Metrics for Jetty's javadoc:org.eclipse.jetty.server.Connector[] instances are b
 === Redis Metrics
 
 Auto-configuration registers a javadoc:io.lettuce.core.tracing.MicrometerTracing[] for the auto-configured javadoc:org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory[].
-For more detail, see the {url-lettuce-docs}/advanced-usage/#observability[Observability section] of the Lettuce documentation.
+For more detail, see the {url-lettuce-docs}/advanced-usage/observability[Observability section] of the Lettuce documentation.
 
 
 

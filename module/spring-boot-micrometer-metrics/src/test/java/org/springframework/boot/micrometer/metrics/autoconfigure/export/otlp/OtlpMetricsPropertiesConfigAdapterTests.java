@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.registry.otlp.AggregationTemporality;
+import io.micrometer.registry.otlp.CompressionMode;
 import io.micrometer.registry.otlp.HistogramFlavor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,7 @@ class OtlpMetricsPropertiesConfigAdapterTests {
 		this.properties = new OtlpMetricsProperties();
 		this.openTelemetryProperties = new OpenTelemetryProperties();
 		this.environment = new MockEnvironment();
-		this.connectionDetails = new PropertiesOtlpMetricsConnectionDetails(this.properties);
+		this.connectionDetails = new PropertiesOtlpMetricsConnectionDetails(this.properties, null);
 	}
 
 	@Test
@@ -86,6 +87,17 @@ class OtlpMetricsPropertiesConfigAdapterTests {
 	void whenPropertiesAggregationTemporalityIsSetAdapterAggregationTemporalityReturnsIt() {
 		this.properties.setAggregationTemporality(AggregationTemporality.DELTA);
 		assertThat(createAdapter().aggregationTemporality()).isSameAs(AggregationTemporality.DELTA);
+	}
+
+	@Test
+	void whenPropertiesCompressionModeIsNotSetAdapterCompressionModeReturnsNone() {
+		assertThat(createAdapter().compressionMode()).isSameAs(CompressionMode.NONE);
+	}
+
+	@Test
+	void whenPropertiesCompressionModeIsSetAdapterCompressionModeReturnsIt() {
+		this.properties.setCompressionMode(CompressionMode.GZIP);
+		assertThat(createAdapter().compressionMode()).isSameAs(CompressionMode.GZIP);
 	}
 
 	@Test
@@ -123,6 +135,24 @@ class OtlpMetricsPropertiesConfigAdapterTests {
 		this.properties.getMeter().put("my.histograms", meterProperties);
 		assertThat(createAdapter().histogramFlavorPerMeter()).containsEntry("my.histograms",
 				HistogramFlavor.BASE2_EXPONENTIAL_BUCKET_HISTOGRAM);
+	}
+
+	@Test
+	void useDefaultPublishMaxGaugeForHistogramsWhenNotSet() {
+		assertThat(this.properties.getPublishMaxGaugeForHistograms()).isNull();
+		assertThat(createAdapter().publishMaxGaugeForHistograms()).isTrue();
+	}
+
+	@Test
+	void whenDefaultPublishMaxGaugeForHistogramsIsSetAdapterUsesIt() {
+		this.properties.setPublishMaxGaugeForHistograms(false);
+		assertThat(createAdapter().publishMaxGaugeForHistograms()).isFalse();
+	}
+
+	@Test
+	void whenAggregationTemporalityIsSetToDeltaThenPublishMaxGaugeForHistogramsDefaultChanges() {
+		this.properties.setAggregationTemporality(AggregationTemporality.DELTA);
+		assertThat(createAdapter().publishMaxGaugeForHistograms()).isFalse();
 	}
 
 	@Test

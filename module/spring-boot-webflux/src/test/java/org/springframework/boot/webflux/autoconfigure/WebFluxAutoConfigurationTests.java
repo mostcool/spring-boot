@@ -36,7 +36,6 @@ import jakarta.validation.ValidatorFactory;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -47,6 +46,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Mono;
 
 import org.springframework.aop.support.AopUtils;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
 import org.springframework.boot.http.codec.CodecCustomizer;
@@ -60,6 +61,7 @@ import org.springframework.boot.web.context.reactive.ReactiveWebApplicationConte
 import org.springframework.boot.web.server.autoconfigure.ServerProperties;
 import org.springframework.boot.web.server.reactive.MockReactiveWebServerFactory;
 import org.springframework.boot.webflux.autoconfigure.WebFluxAutoConfiguration.WebFluxConfig;
+import org.springframework.boot.webflux.autoconfigure.WebFluxAutoConfiguration.WebFluxValidatorRuntimeHints;
 import org.springframework.boot.webflux.autoconfigure.WebFluxAutoConfigurationTests.OrderedControllerAdviceBeansConfiguration.HighestOrderedControllerAdvice;
 import org.springframework.boot.webflux.autoconfigure.WebFluxAutoConfigurationTests.OrderedControllerAdviceBeansConfiguration.LowestOrderedControllerAdvice;
 import org.springframework.boot.webflux.filter.OrderedHiddenHttpMethodFilter;
@@ -72,10 +74,12 @@ import org.springframework.context.i18n.LocaleContext;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.format.Parser;
 import org.springframework.format.Printer;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.support.FormattingConversionService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseCookie;
@@ -133,6 +137,7 @@ import org.springframework.web.util.pattern.PathPattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.setExtractBareNamePropertyMethods;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -338,6 +343,17 @@ class WebFluxAutoConfigurationTests {
 	}
 
 	@Test
+	void embeddedValueResolverIsAppliedToConversionService() {
+		this.contextRunner.withPropertyValues("my.date.format=yyyy-MM-dd").run((context) -> {
+			FormattingConversionService conversionService = context.getBean(FormattingConversionService.class);
+			TypeDescriptor dateType = new TypeDescriptor(FormattedDate.class.getDeclaredField("date"));
+			Date date = Date.from(ZonedDateTime.of(2000, 1, 2, 3, 4, 5, 6, ZoneId.systemDefault()).toInstant());
+			assertThat(conversionService.convert(date, dateType, TypeDescriptor.valueOf(String.class)))
+				.isEqualTo("2000-01-02");
+		});
+	}
+
+	@Test
 	void validatorWhenNoValidatorShouldUseDefault() {
 		this.contextRunner.run((context) -> {
 			assertThat(context).doesNotHaveBean(ValidatorFactory.class);
@@ -488,7 +504,7 @@ class WebFluxAutoConfigurationTests {
 
 	@Test
 	void cachePeriod() {
-		Assertions.setExtractBareNamePropertyMethods(false);
+		setExtractBareNamePropertyMethods(false);
 		this.contextRunner.withPropertyValues("spring.web.resources.cache.period:5").run((context) -> {
 			Map<PathPattern, Object> handlerMap = getHandlerMap(context);
 			assertThat(handlerMap).hasSize(2);
@@ -499,12 +515,12 @@ class WebFluxAutoConfigurationTests {
 				}
 			}
 		});
-		Assertions.setExtractBareNamePropertyMethods(true);
+		setExtractBareNamePropertyMethods(true);
 	}
 
 	@Test
 	void cacheControl() {
-		Assertions.setExtractBareNamePropertyMethods(false);
+		setExtractBareNamePropertyMethods(false);
 		this.contextRunner
 			.withPropertyValues("spring.web.resources.cache.cachecontrol.max-age:5",
 					"spring.web.resources.cache.cachecontrol.proxy-revalidate:true")
@@ -518,7 +534,7 @@ class WebFluxAutoConfigurationTests {
 					}
 				}
 			});
-		Assertions.setExtractBareNamePropertyMethods(true);
+		setExtractBareNamePropertyMethods(true);
 	}
 
 	@Test
@@ -894,6 +910,35 @@ class WebFluxAutoConfigurationTests {
 	}
 
 	@Test
+	void apiVersionUsesPathSegmentLast() {
+		this.contextRunner
+			.withPropertyValues("spring.webflux.apiversion.use.path-segment=1",
+					"spring.webflux.apiversion.use.header=hv", "spring.webflux.apiversion.use.query-parameter=rpv",
+					"spring.webflux.apiversion.use.media-type-parameter[application/json]=mtpv")
+			.run((context) -> {
+				DefaultApiVersionStrategy versionStrategy = context.getBean("webFluxApiVersionStrategy",
+						DefaultApiVersionStrategy.class);
+
+				MockServerWebExchange requestWithHeader = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456").header("hv", "123"));
+				assertThat(versionStrategy.resolveVersion(requestWithHeader)).isEqualTo("123");
+
+				MockServerWebExchange requestWithQueryParameter = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com?rpv=123"));
+				assertThat(versionStrategy.resolveVersion(requestWithQueryParameter)).isEqualTo("123");
+
+				MockServerWebExchange requestWithMediaType = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456")
+						.header("content-type", "application/json;mtpv=123"));
+				assertThat(versionStrategy.resolveVersion(requestWithMediaType)).isEqualTo("123");
+
+				MockServerWebExchange requestFallbacksToApiSegment = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456"));
+				assertThat(versionStrategy.resolveVersion(requestFallbacksToApiSegment)).isEqualTo("456");
+			});
+	}
+
+	@Test
 	void apiVersionBeansAreInjected() {
 		this.contextRunner.withUserConfiguration(ApiVersionConfiguration.class).run((context) -> {
 			DefaultApiVersionStrategy versionStrategy = context.getBean("webFluxApiVersionStrategy",
@@ -905,6 +950,13 @@ class WebFluxAutoConfigurationTests {
 				.isEqualTo(context.getBean(ApiVersionDeprecationHandler.class));
 			assertThat(versionStrategy).extracting("versionParser").isEqualTo(context.getBean(ApiVersionParser.class));
 		});
+	}
+
+	@Test
+	void registersRuntimeHintsForValidatorCreation() {
+		RuntimeHints hints = new RuntimeHints();
+		new WebFluxValidatorRuntimeHints().registerHints(hints, getClass().getClassLoader());
+		assertThat(RuntimeHintsPredicates.reflection().onType(ValidatorAdapter.class)).accepts(hints);
 	}
 
 	private ContextConsumer<ReactiveWebApplicationContext> assertExchangeWithSession(
@@ -1320,6 +1372,13 @@ class WebFluxAutoConfigurationTests {
 		ApiVersionParser<String> apiVersionParser() {
 			return (version) -> String.valueOf(version);
 		}
+
+	}
+
+	static class FormattedDate {
+
+		@DateTimeFormat(pattern = "${my.date.format}")
+		@Nullable Date date;
 
 	}
 

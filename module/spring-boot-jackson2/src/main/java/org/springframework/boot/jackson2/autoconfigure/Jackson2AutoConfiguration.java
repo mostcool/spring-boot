@@ -83,7 +83,7 @@ import org.springframework.util.ReflectionUtils;
  * @author Eddú Meléndez
  * @author Ralf Ueberfuhr
  * @since 4.0.0
- * @deprecated since 4.0.0 for removal in 4.2.0 in favor of Jackson 3.
+ * @deprecated since 4.0.0 for removal in 4.3.0 in favor of Jackson 3.
  */
 @AutoConfiguration
 @ConditionalOnClass(ObjectMapper.class)
@@ -340,19 +340,15 @@ public final class Jackson2AutoConfiguration {
 					org.springframework.http.converter.json.Jackson2ObjectMapperBuilder builder) {
 				org.springframework.boot.jackson2.autoconfigure.Jackson2Properties.ConstructorDetectorStrategy strategy = this.jacksonProperties
 					.getConstructorDetector();
-				if (strategy != null) {
-					builder.postConfigurer((objectMapper) -> {
-						switch (strategy) {
-							case USE_PROPERTIES_BASED ->
-								objectMapper.setConstructorDetector(ConstructorDetector.USE_PROPERTIES_BASED);
-							case USE_DELEGATING ->
-								objectMapper.setConstructorDetector(ConstructorDetector.USE_DELEGATING);
-							case EXPLICIT_ONLY ->
-								objectMapper.setConstructorDetector(ConstructorDetector.EXPLICIT_ONLY);
-							default -> objectMapper.setConstructorDetector(ConstructorDetector.DEFAULT);
-						}
-					});
-				}
+				builder.postConfigurer((objectMapper) -> {
+					switch (strategy) {
+						case USE_PROPERTIES_BASED ->
+							objectMapper.setConstructorDetector(ConstructorDetector.USE_PROPERTIES_BASED);
+						case USE_DELEGATING -> objectMapper.setConstructorDetector(ConstructorDetector.USE_DELEGATING);
+						case EXPLICIT_ONLY -> objectMapper.setConstructorDetector(ConstructorDetector.EXPLICIT_ONLY);
+						default -> objectMapper.setConstructorDetector(ConstructorDetector.DEFAULT);
+					}
+				});
 			}
 
 		}

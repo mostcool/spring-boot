@@ -12,7 +12,7 @@ TIP: To learn more about Micrometer Tracing capabilities, see its {url-micromete
 
 Spring Boot ships auto-configuration for the following tracers:
 
-* https://opentelemetry.io/[OpenTelemetry] with https://zipkin.io/[Zipkin] or https://opentelemetry.io/docs/reference/specification/protocol/[OTLP].
+* https://opentelemetry.io/[OpenTelemetry] with https://opentelemetry.io/docs/reference/specification/protocol/[OTLP].
 * https://github.com/openzipkin/brave[OpenZipkin Brave] with https://zipkin.io/[Zipkin].
 
 
@@ -22,7 +22,7 @@ Spring Boot ships auto-configuration for the following tracers:
 
 We need an example application that we can use to get started with tracing.
 For our purposes, the simple "`Hello World!`" web application that's covered in the xref:tutorial:first-application/index.adoc[] section will suffice.
-We're going to use the OpenTelemetry tracer with Zipkin as trace backend.
+We're going to use the Brave tracer with Zipkin as trace backend.
 
 To recap, our main application code looks like this:
 
@@ -30,13 +30,9 @@ include-code::MyApplication[]
 
 NOTE: There's an added logger statement in the `home()` method, which will be important later.
 
-Now we have to add the following dependencies:
+Now we have to add the `org.springframework.boot:spring-boot-starter-zipkin` dependency.
 
-* `org.springframework.boot:spring-boot-starter-actuator`
-* `io.micrometer:micrometer-tracing-bridge-otel` - bridges the Micrometer Observation API to OpenTelemetry.
-* `io.opentelemetry:opentelemetry-exporter-zipkin` - reports {url-micrometer-tracing-docs}/glossary[traces] to Zipkin.
-
-Add the following application properties:
+Then add the following application properties:
 
 [configprops,yaml]
 ----
@@ -62,7 +58,7 @@ If you open a web browser to `http://localhost:8080`, you should see the followi
 Hello World!
 ----
 
-Behind the scenes, an observation has been created for the HTTP request, which in turn gets bridged to OpenTelemetry, which reports a new trace to Zipkin.
+Behind the scenes, an observation has been created for the HTTP request, which in turn gets bridged to Brave, which reports a new trace to Zipkin.
 
 Now open the Zipkin UI at `http://localhost:9411` and press the "Run Query" button to list all collected traces.
 You should see one trace.
@@ -111,21 +107,7 @@ WARNING: If you create the javadoc:org.springframework.web.client.RestTemplate[]
 == Tracer Implementations
 
 As Micrometer Tracer supports multiple tracer implementations, there are multiple dependency combinations possible with Spring Boot.
-
-All tracer implementations need the `org.springframework.boot:spring-boot-starter-actuator` dependency.
-
-
-
-[[actuator.micrometer-tracing.tracer-implementations.otel-zipkin]]
-=== OpenTelemetry With Zipkin
-
-Tracing with OpenTelemetry and reporting to Zipkin requires the following dependencies:
-
-* `io.micrometer:micrometer-tracing-bridge-otel` - bridges the Micrometer Observation API to OpenTelemetry.
-* `io.opentelemetry:opentelemetry-exporter-zipkin` - reports traces to Zipkin.
-
-Use the `management.tracing.export.zipkin.*` configuration properties to configure reporting to Zipkin.
-
+The combinations OpenTelemetry with OTLP and Brave with Zipkin are common and have dedicated starters.
 
 
 [[actuator.micrometer-tracing.tracer-implementations.otel-otlp]]
@@ -133,8 +115,7 @@ Use the `management.tracing.export.zipkin.*` configuration properties to configu
 
 Tracing with OpenTelemetry and reporting using OTLP requires the following dependencies:
 
-* `io.micrometer:micrometer-tracing-bridge-otel` - bridges the Micrometer Observation API to OpenTelemetry.
-* `io.opentelemetry:opentelemetry-exporter-otlp` - reports traces to a collector that can accept OTLP.
+* `org.springframework.boot:spring-boot-starter-opentelemetry`
 
 Use the `management.opentelemetry.tracing.export.otlp.*` configuration properties to configure reporting using OTLP.
 
@@ -144,15 +125,87 @@ The customizers take precedence over anything applied by the auto-configuration.
 
 
 
+[[actuator.micrometer-tracing.tracer-implementations.otel-zipkin]]
+=== OpenTelemetry With Zipkin
+
+WARNING: OpenTelemetry has https://opentelemetry.io/docs/specs/otel/trace/sdk_exporters/zipkin/[deprecated their Zipkin support].
+The auto-configuration for it will be removed in Spring Boot 4.2.
+Either switch to Brave or consider using https://github.com/openzipkin-contrib/zipkin-otel[the Zipkin OTel module] for ingesting OTLP directly.
+
+Tracing with OpenTelemetry and reporting to Zipkin requires the following dependencies:
+
+* `org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry` - Spring Boot's support for Micrometer Tracing over OpenTelemetry.
+* `io.micrometer:micrometer-tracing-bridge-otel` - bridges the Micrometer Observation API to OpenTelemetry.
+* `org.springframework.boot:spring-boot-zipkin` - Spring Boot's support for Zipkin.
+* `io.opentelemetry:opentelemetry-exporter-zipkin` - OpenTelemetry exporter that reports traces to Zipkin.
+
+Use the `management.tracing.export.zipkin.*` configuration properties to configure reporting to Zipkin.
+
+
+
 [[actuator.micrometer-tracing.tracer-implementations.brave-zipkin]]
 === OpenZipkin Brave With Zipkin
 
 Tracing with OpenZipkin Brave and reporting to Zipkin requires the following dependencies:
 
-* `io.micrometer:micrometer-tracing-bridge-brave` - bridges the Micrometer Observation API to Brave.
-* `io.zipkin.reporter2:zipkin-reporter-brave` - reports traces to Zipkin.
+* `org.springframework.boot:spring-boot-starter-zipkin`
 
 Use the `management.tracing.export.zipkin.*` configuration properties to configure reporting to Zipkin.
+
+
+
+[[actuator.micrometer-tracing.sampling]]
+== Sampling
+
+By default, Spring Boot samples only 10% of requests to prevent overwhelming the trace backend.
+The configprop:management.tracing.sampling.probability[] property can be used to configure this.
+
+When using OpenTelemetry, you can also configure which sampler is used via the configprop:management.opentelemetry.tracing.sampler[] property.
+The following samplers are supported:
+
+|===
+|Sampler |Description
+
+|`always-on`
+|Samples every trace.
+
+|`always-off`
+|Discards every trace.
+
+|`trace-id-ratio`
+|Samples a fraction of traces based on configprop:management.tracing.sampling.probability[].
+
+|`parent-based-always-on`
+|If the parent span is sampled, samples the child span. If there is no parent, samples every trace.
+
+|`parent-based-always-off`
+|If the parent span is sampled, samples the child span. If there is no parent, discards every trace.
+
+|`parent-based-trace-id-ratio` (default)
+|If the parent span is sampled, samples the child span. If there is no parent, samples a fraction of traces based on configprop:management.tracing.sampling.probability[].
+|===
+
+
+
+[[actuator.micrometer-tracing.span-limits]]
+== Span Limits
+
+When using OpenTelemetry, you can configure span limits via the `management.opentelemetry.tracing.limits.*` configuration properties.
+These allow you to control the maximum number of attributes, events, and links per span, as well as the maximum length of string attribute values.
+
+For example, to limit the number of attributes per span to 64 and the maximum attribute value length to 256 characters:
+
+[configprops,yaml]
+----
+management:
+  opentelemetry:
+    tracing:
+      limits:
+        max-attributes: 64
+        max-attribute-value-length: 256
+----
+
+If you need full control, you can register a custom javadoc:io.opentelemetry.sdk.trace.SpanLimits[] bean.
 
 
 

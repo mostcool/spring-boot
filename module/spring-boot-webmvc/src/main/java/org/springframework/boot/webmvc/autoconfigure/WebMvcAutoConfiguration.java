@@ -28,6 +28,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.aot.hint.TypeReference;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -64,6 +67,7 @@ import org.springframework.boot.webmvc.autoconfigure.WebMvcProperties.Apiversion
 import org.springframework.boot.webmvc.autoconfigure.WebMvcProperties.Apiversion.Use;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcProperties.Format;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.EmbeddedValueResolverAware;
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -84,6 +88,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringValueResolver;
 import org.springframework.validation.DefaultMessageCodesResolver;
 import org.springframework.validation.MessageCodesResolver;
 import org.springframework.validation.Validator;
@@ -416,9 +421,8 @@ public final class WebMvcAutoConfiguration {
 			PropertyMapper map = PropertyMapper.get();
 			map.from(use::getHeader).whenHasText().to(configurer::useRequestHeader);
 			map.from(use::getQueryParameter).whenHasText().to(configurer::useQueryParam);
+			use.getMediaTypeParameter().forEach(configurer::useMediaTypeParameter);
 			map.from(use::getPathSegment).to(configurer::usePathSegment);
-			use.getMediaTypeParameter()
-				.forEach((mediaType, parameterName) -> configurer.useMediaTypeParameter(mediaType, parameterName));
 		}
 
 		@Bean
@@ -435,7 +439,9 @@ public final class WebMvcAutoConfiguration {
 	 */
 	@Configuration(proxyBeanMethods = false)
 	@EnableConfigurationProperties(WebProperties.class)
-	static class EnableWebMvcConfiguration extends DelegatingWebMvcConfiguration implements ResourceLoaderAware {
+	@ImportRuntimeHints(MvcValidatorRuntimeHints.class)
+	static class EnableWebMvcConfiguration extends DelegatingWebMvcConfiguration
+			implements ResourceLoaderAware, EmbeddedValueResolverAware {
 
 		private final Resources resourceProperties;
 
@@ -446,6 +452,8 @@ public final class WebMvcAutoConfiguration {
 		private final ListableBeanFactory beanFactory;
 
 		private final @Nullable WebMvcRegistrations mvcRegistrations;
+
+		private @Nullable StringValueResolver embeddedValueResolver;
 
 		@SuppressWarnings("NullAway.Init")
 		private ResourceLoader resourceLoader;
@@ -563,12 +571,17 @@ public final class WebMvcAutoConfiguration {
 		@Override
 		public FormattingConversionService mvcConversionService() {
 			Format format = this.mvcProperties.getFormat();
-			WebConversionService conversionService = new WebConversionService(
+			WebConversionService conversionService = new WebConversionService(this.embeddedValueResolver,
 					new DateTimeFormatters().dateFormat(format.getDate())
 						.timeFormat(format.getTime())
 						.dateTimeFormat(format.getDateTime()));
 			addFormatters(conversionService);
 			return conversionService;
+		}
+
+		@Override
+		public void setEmbeddedValueResolver(StringValueResolver resolver) {
+			this.embeddedValueResolver = resolver;
 		}
 
 		@Bean
@@ -720,6 +733,16 @@ public final class WebMvcAutoConfiguration {
 		@Order(0)
 		ProblemDetailsExceptionHandler problemDetailsExceptionHandler() {
 			return new ProblemDetailsExceptionHandler();
+		}
+
+	}
+
+	static class MvcValidatorRuntimeHints implements RuntimeHintsRegistrar {
+
+		@Override
+		public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+			hints.reflection()
+				.registerType(TypeReference.of("org.springframework.boot.validation.autoconfigure.ValidatorAdapter"));
 		}
 
 	}

@@ -45,6 +45,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
 import org.springframework.aop.support.AopUtils;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
@@ -64,6 +66,7 @@ import org.springframework.boot.web.server.servlet.ServletWebServerFactory;
 import org.springframework.boot.web.server.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration.MvcValidatorRuntimeHints;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration.WebMvcAutoConfigurationAdapter;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfigurationTests.OrderedControllerAdviceBeansConfiguration.HighestOrderedControllerAdvice;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfigurationTests.OrderedControllerAdviceBeansConfiguration.LowestOrderedControllerAdvice;
@@ -75,11 +78,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.format.Parser;
 import org.springframework.format.Printer;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.support.FormattingConversionService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -503,6 +508,17 @@ class WebMvcAutoConfigurationTests {
 			FormattingConversionService conversionService = context.getBean(FormattingConversionService.class);
 			LocalDateTime dateTime = LocalDateTime.of(2020, 4, 28, 11, 43, 10);
 			assertThat(conversionService.convert(dateTime, String.class)).isEqualTo("2020-04-28 11:43:10");
+		});
+	}
+
+	@Test
+	void embeddedValueResolverIsAppliedToConversionService() {
+		this.contextRunner.withPropertyValues("my.date.format=yyyy-MM-dd").run((context) -> {
+			FormattingConversionService conversionService = context.getBean(FormattingConversionService.class);
+			TypeDescriptor dateType = new TypeDescriptor(FormattedDate.class.getDeclaredField("date"));
+			Date date = Date.from(ZonedDateTime.of(2000, 1, 2, 3, 4, 5, 6, ZoneId.systemDefault()).toInstant());
+			assertThat(conversionService.convert(date, dateType, TypeDescriptor.valueOf(String.class)))
+				.isEqualTo("2000-01-02");
 		});
 	}
 
@@ -1107,6 +1123,42 @@ class WebMvcAutoConfigurationTests {
 	}
 
 	@Test
+	void apiVersionUsesPathSegmentLast() {
+		this.contextRunner
+			.withPropertyValues("spring.mvc.apiversion.use.path-segment=1", "spring.mvc.apiversion.use.header=hv",
+					"spring.mvc.apiversion.use.query-parameter=rpv",
+					"spring.mvc.apiversion.use.media-type-parameter[application/json]=mtpv")
+			.run((context) -> {
+				ApiVersionStrategy versionStrategy = context.getBean("mvcApiVersionStrategy", ApiVersionStrategy.class);
+
+				MockHttpServletRequest requestWithHeader = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				requestWithHeader.addHeader("hv", "123");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"), requestWithHeader);
+				assertThat(versionStrategy.resolveVersion(requestWithHeader)).isEqualTo("123");
+
+				MockHttpServletRequest requestWithQueryParameter = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				requestWithQueryParameter.setQueryString("rpv=123");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"),
+						requestWithQueryParameter);
+				assertThat(versionStrategy.resolveVersion(requestWithQueryParameter)).isEqualTo("123");
+
+				MockHttpServletRequest requestWithMediaType = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"), requestWithMediaType);
+				requestWithMediaType.addHeader(HttpHeaders.CONTENT_TYPE, "application/json;mtpv=123");
+				assertThat(versionStrategy.resolveVersion(requestWithMediaType)).isEqualTo("123");
+
+				MockHttpServletRequest requestFallbacksToApiSegment = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"),
+						requestFallbacksToApiSegment);
+				assertThat(versionStrategy.resolveVersion(requestFallbacksToApiSegment)).isEqualTo("456");
+			});
+	}
+
+	@Test
 	void apiVersionBeansAreInjected() {
 		this.contextRunner.withUserConfiguration(ApiVersionConfiguration.class).run((context) -> {
 			DefaultApiVersionStrategy versionStrategy = context.getBean("mvcApiVersionStrategy",
@@ -1135,6 +1187,13 @@ class WebMvcAutoConfigurationTests {
 				inOrder.verify(customizer1).customize(any(ServerBuilder.class));
 				inOrder.verify(customizer2).customize(any(ServerBuilder.class));
 			});
+	}
+
+	@Test
+	void registersRuntimeHintsForValidatorCreation() {
+		RuntimeHints hints = new RuntimeHints();
+		new MvcValidatorRuntimeHints().registerHints(hints, getClass().getClassLoader());
+		assertThat(RuntimeHintsPredicates.reflection().onType(ValidatorAdapter.class)).accepts(hints);
 	}
 
 	private void assertResourceHttpRequestHandler(AssertableWebApplicationContext context,
@@ -1743,6 +1802,13 @@ class WebMvcAutoConfigurationTests {
 		ServerHttpMessageConvertersCustomizer customizer3() {
 			return mock(ServerHttpMessageConvertersCustomizer.class);
 		}
+
+	}
+
+	static class FormattedDate {
+
+		@DateTimeFormat(pattern = "${my.date.format}")
+		@Nullable Date date;
 
 	}
 

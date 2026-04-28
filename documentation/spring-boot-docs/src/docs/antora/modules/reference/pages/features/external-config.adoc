@@ -294,7 +294,18 @@ This will trigger the import of a `dev.properties` file in current directory (if
 Values from the imported `dev.properties` will take precedence over the file that triggered the import.
 In the above example, the `dev.properties` could redefine `spring.application.name` to a different value.
 
-An import will only be imported once no matter how many times it is declared.
+NOTE: An import will only be imported once no matter how many times it is declared.
+
+By default, properties files are imported using the ISO-8859-1 charset. To change that, you can use the encoding attribute:
+
+[configprops,yaml]
+----
+spring:
+  config:
+    import: "classpath:import.properties[encoding=utf-8]"
+----
+
+The `import.properties` file will now be read in UTF-8 encoding.
 
 
 
@@ -392,6 +403,31 @@ You can import it from your `application.properties` using the following:
 spring:
   config:
     import: "file:/etc/config/myconfig[.yaml]"
+----
+
+This is the shorthand for:
+
+[configprops,yaml]
+----
+spring:
+  config:
+    import: "file:/etc/config/myconfig[extension=.yaml]"
+----
+
+
+
+[[features.external-config.files.attributes]]
+=== File attributes
+
+The configprop:spring.config.import[] configuration property supports file attributes, as shown when specifying the xref:features/external-config.adoc#features.external-config.files.importing[encoding] or the xref:features/external-config.adoc#features.external-config.files.importing-extensionless[extension].
+
+If you need to specify multiple attributes, you can use this syntax:
+
+[configprops,yaml]
+----
+spring:
+  config:
+    import: "file:/etc/config/myconfig[extension=.yaml][encoding=utf-8]"
 ----
 
 
@@ -545,7 +581,7 @@ You should always refer to property names in the placeholder using their canonic
 This will allow Spring Boot to use the same logic as it does when xref:features/external-config.adoc#features.external-config.typesafe-configuration-properties.relaxed-binding[relaxed binding] javadoc:org.springframework.boot.context.properties.ConfigurationProperties[format=annotation].
 
 For example, `${demo.item-price}` will pick up `demo.item-price` and `demo.itemPrice` forms from the `application.properties` file, as well as `DEMO_ITEMPRICE` from the system environment.
-If you used `${demo.itemPrice}` instead, `demo.item-price` and `DEMO_ITEMPRICE` would not be considered.
+If you use `${demo.itemPrice}` instead, it will pick up the `demo.itemPrice` form from the `application.properties` file, as well as `DEMO_ITEMPRICE` from the system environment, but `demo.item-price` would not be considered.
 ====
 
 TIP: You can also use this technique to create "`short`" variants of existing Spring Boot properties.
@@ -642,7 +678,7 @@ myotherprop: "sometimes-set"
 == Encrypting Properties
 
 Spring Boot does not provide any built-in support for encrypting property values, however, it does provide the hook points necessary to modify values contained in the Spring javadoc:org.springframework.core.env.Environment[].
-The javadoc:org.springframework.boot.env.EnvironmentPostProcessor[] interface allows you to manipulate the javadoc:org.springframework.core.env.Environment[] before the application starts.
+The javadoc:org.springframework.boot.EnvironmentPostProcessor[] interface allows you to manipulate the javadoc:org.springframework.core.env.Environment[] before the application starts.
 See xref:how-to:application.adoc#howto.application.customize-the-environment-or-application-context[] for details.
 
 If you need a secure way to store credentials and passwords, the https://cloud.spring.io/spring-cloud-vault/[Spring Cloud Vault] project provides support for storing externalized configuration in https://www.vaultproject.io/[HashiCorp Vault].
@@ -830,14 +866,6 @@ Unless your record has multiple constructors, there is no need to use javadoc:or
 
 Nested members of a constructor bound class (such as `Security` in the example above) will also be bound through their constructor.
 
-Default values can be specified using javadoc:org.springframework.boot.context.properties.bind.DefaultValue[format=annotation] on constructor parameters and record components.
-The conversion service will be applied to coerce the annotation's javadoc:java.lang.String[] value to the target type of a missing property.
-
-Referring to the previous example, if no properties are bound to `Security`, the `MyProperties` instance will contain a `null` value for `security`.
-To make it contain a non-null instance of `Security` even when no properties are bound to it (when using Kotlin, this will require the `username` and `password` parameters of `Security` to be declared as nullable as they do not have default values), use an empty javadoc:org.springframework.boot.context.properties.bind.DefaultValue[format=annotation] annotation:
-
-include-code::nonnull/MyProperties[tag=*]
-
 NOTE: To use constructor binding the class must be enabled using javadoc:org.springframework.boot.context.properties.EnableConfigurationProperties[format=annotation] or configuration property scanning.
 You cannot use constructor binding with beans that are created by the regular Spring mechanisms (for example javadoc:org.springframework.stereotype.Component[format=annotation] beans, beans created by using javadoc:org.springframework.context.annotation.Bean[format=annotation] methods or beans loaded by using javadoc:org.springframework.context.annotation.Import[format=annotation])
 
@@ -849,6 +877,86 @@ As such, it is not well-suited to configuration property injection.
 For consistency with properties of other types, if you do declare an javadoc:java.util.Optional[] property and it has no value, `null` rather than an empty javadoc:java.util.Optional[] will be bound.
 
 TIP: To use a reserved keyword in the name of a property, such as `my.service.import`, use the javadoc:org.springframework.boot.context.properties.bind.Name[format=annotation] annotation on the constructor parameter.
+
+
+
+[[features.external-config.typesafe-configuration-properties.constructor-binding.default-values]]
+==== @DefaultValue and Binding
+
+Default values can be specified using javadoc:org.springframework.boot.context.properties.bind.DefaultValue[format=annotation] on constructor parameters and record components.
+The conversion service will be applied to coerce the annotation's javadoc:java.lang.String[] value to the target type of a missing property.
+
+In the `MyProperties` example above, you can see the nested `Security` class uses `@DefaultValue("USER")` for the `roles` parameter.
+This means that if `security` properties are defined, but `roles` is not, the default of `"USER"` will be bound.
+
+For example, the following properties:
+
+[configprops%novalidate,yaml]
+----
+my:
+  service:
+    enabled: true
+    security:
+      username: admin
+----
+
+Will be bound as `new MyProperties(true, null, new Security("admin", null, List.of("USER")))`
+
+If the `security` property is not present at all, then the `Security` instance will be `null`.
+
+For example, the following properties:
+
+[configprops%novalidate,yaml]
+----
+my:
+  service:
+    enabled: true
+----
+
+Will be bound as `new MyProperties(true, null, null)`
+
+[NOTE]
+====
+You can define an empty `security` property if you want to trigger binding with fully default `Security` instance.
+
+For YAML, you can use the following syntax:
+
+[,yaml]
+----
+my:
+  service:
+    enabled: true
+    security: {}
+----
+
+With `Properties` you can use:
+
+[,properties]
+----
+my.service.enabled=true
+my.service.security=
+----
+
+Will be bound as `new MyProperties(true, null, new Security(null, null, List.of("USER")))`
+====
+
+If you want to always bind a non-null instance of `Security`, even when properties are missing, you can use an empty javadoc:org.springframework.boot.context.properties.bind.DefaultValue[format=annotation] annotation:
+
+include-code::nonnull/MyProperties[tag=*]
+
+TIP: When using Kotlin, you will need to declare the `username` and `password` parameters as nullable since they do not have default values
+
+
+
+[[features.external-config.typesafe-configuration-properties.default-values]]
+=== Default Values
+
+Default Values defined in configuration properties are not reflected in the javadoc:org.springframework.core.env.Environment[].
+In the examples above, the `enabled` property of `MyProperties` bound to `my.service` is `false` by default.
+
+However,  `my.service.enabled` is not available in the `Environment` with a value of `false` if no such property is set by the user.
+Concretely, this prevents you to use `@Value(${"my.service.enabled"})` or `my.service.enabled` as a placeholder in configuration properties without explicitly providing a default.
+If you need to query the javadoc:org.springframework.core.env.Environment[] for that property, for instance in a javadoc:org.springframework.context.annotation.Condition[] implementation, the default needs to be provided as well.
 
 
 
@@ -1220,7 +1328,7 @@ Doing so gives a transparent upgrade path while supporting a much richer format.
 In addition to durations, Spring Boot can also work with javadoc:java.time.Period[] type.
 The following formats can be used in application properties:
 
-* An regular `int` representation (using days as the default unit unless a javadoc:org.springframework.boot.convert.PeriodUnit[format=annotation] has been specified)
+* A regular `int` representation (using days as the default unit unless a javadoc:org.springframework.boot.convert.PeriodUnit[format=annotation] has been specified)
 * The standard ISO-8601 format {apiref-openjdk}/java.base/java/time/Period.html#parse(java.lang.CharSequence)[used by javadoc:java.time.Period[]]
 * A simpler format where the value and the unit pairs are coupled (`1y3d` means 1 year and 3 days)
 
@@ -1344,7 +1452,7 @@ If you do want to use javadoc:org.springframework.beans.factory.annotation.Value
 This will allow Spring Boot to use the same logic as it does when xref:features/external-config.adoc#features.external-config.typesafe-configuration-properties.relaxed-binding[relaxed binding] javadoc:org.springframework.boot.context.properties.ConfigurationProperties[format=annotation].
 
 For example, `@Value("${demo.item-price}")` will pick up `demo.item-price` and `demo.itemPrice` forms from the `application.properties` file, as well as `DEMO_ITEMPRICE` from the system environment.
-If you used `@Value("${demo.itemPrice}")` instead, `demo.item-price` and `DEMO_ITEMPRICE` would not be considered.
+If you use `@Value("${demo.itemPrice}")` instead, it will pickup the `demo.itemPrice` form from the `application.properties` file, as well as `DEMO_ITEMPRICE` from the system environment, but `demo.item-price` would not be considered.
 ====
 
 If you define a set of configuration keys for your own components, we recommend you group them in a POJO annotated with javadoc:org.springframework.boot.context.properties.ConfigurationProperties[format=annotation].

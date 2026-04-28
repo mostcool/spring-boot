@@ -470,6 +470,20 @@ class BootBuildImageIntegrationTests {
 	}
 
 	@TestTemplate
+	void buildsImageWithMultipleCommandLineEnvironments() throws IOException {
+		writeMainClass();
+		writeLongNameResource();
+		BuildResult result = this.gradleBuild.build("bootBuildImage", "--environment", "BP_LIVE_RELOAD_ENABLED=true",
+				"--environment", "MY_CUSTOM_VAR=hello_world");
+		BuildTask task = result.task(":bootBuildImage");
+		assertThat(task).isNotNull();
+		assertThat(task.getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
+		assertThat(result.getOutput()).contains("BP_LIVE_RELOAD_ENABLED=true");
+		assertThat(result.getOutput()).contains("MY_CUSTOM_VAR=hello_world");
+		removeImages(this.gradleBuild.getProjectDir().getName());
+	}
+
+	@TestTemplate
 	@EnabledOnOs(value = { OS.LINUX, OS.MAC }, architectures = "amd64",
 			disabledReason = "The expected failure condition will not fail on ARM architectures")
 	void failsWhenBuildingOnLinuxAmdWithImagePlatformLinuxArm() throws IOException {
@@ -564,8 +578,9 @@ class BootBuildImageIntegrationTests {
 	void failsWithIncompatiblePlatform() throws IOException {
 		writeMainClass();
 		BuildResult result = this.gradleBuild.buildAndFail("bootBuildImage");
-		assertThat(result.getOutput()).contains(
-				"Image platform mismatch detected. The configured platform 'linux/arm64' is not supported by the image 'ghcr.io/spring-io/spring-boot-cnb-test-builder:0.0.3-amd64'. Requested platform 'linux/arm64' but got 'linux/amd64'");
+		assertThat(result.getOutput()).containsAnyOf(
+				"Image platform mismatch detected. The configured platform 'linux/arm64' is not supported by the image 'ghcr.io/spring-io/spring-boot-cnb-test-builder:0.0.3-amd64'. Requested platform 'linux/arm64' but got 'linux/amd64'",
+				"image with reference ghcr.io/spring-io/spring-boot-cnb-test-builder:0.0.3-amd64 was found but its platform (linux/amd64) does not match the specified platform (linux/arm64)");
 	}
 
 	private void writeMainClass() throws IOException {

@@ -24,4 +24,5 @@ dependencies {
 	api(project(":starter:spring-boot-starter"))
 
 	api(project(":module:spring-boot-data-redis"))
+	api("org.springframework:spring-messaging")
 }

@@ -49,9 +49,6 @@ import org.flywaydb.database.oracle.OracleConfigurationExtension;
 import org.flywaydb.database.postgresql.PostgreSQLConfigurationExtension;
 import org.flywaydb.database.sqlserver.SQLServerConfigurationExtension;
 import org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform;
-import org.jooq.DSLContext;
-import org.jooq.SQLDialect;
-import org.jooq.impl.DefaultDSLContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -60,7 +57,6 @@ import org.postgresql.Driver;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.beans.factory.BeanCreationException;
-import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration.FlywayAutoConfigurationRuntimeHints;
@@ -823,37 +819,6 @@ class FlywayAutoConfigurationTests {
 	}
 
 	@Test
-	void whenFlywayIsAutoConfiguredThenJooqDslContextDependsOnFlywayBeans() {
-		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class)
-			.run((context) -> {
-				BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
-				assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("flywayInitializer", "flyway");
-			});
-	}
-
-	@Test
-	void whenCustomMigrationInitializerIsDefinedThenJooqDslContextDependsOnIt() {
-		this.contextRunner
-			.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class,
-					CustomFlywayMigrationInitializer.class)
-			.run((context) -> {
-				BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
-				assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("flywayMigrationInitializer",
-						"flyway");
-			});
-	}
-
-	@Test
-	void whenCustomFlywayIsDefinedThenJooqDslContextDependsOnIt() {
-		this.contextRunner
-			.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class, CustomFlyway.class)
-			.run((context) -> {
-				BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
-				assertThat(beanDefinition.getDependsOn()).containsExactlyInAnyOrder("customFlyway");
-			});
-	}
-
-	@Test
 	void scriptPlaceholderPrefixIsCorrectlyMapped() {
 		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
 			.withPropertyValues("spring.flyway.script-placeholder-prefix=SPP")
@@ -896,6 +861,8 @@ class FlywayAutoConfigurationTests {
 		new FlywayAutoConfigurationRuntimeHints().registerHints(runtimeHints, getClass().getClassLoader());
 		assertThat(RuntimeHintsPredicates.resource().forResource("db/migration/")).accepts(runtimeHints);
 		assertThat(RuntimeHintsPredicates.resource().forResource("db/migration/V1__init.sql")).accepts(runtimeHints);
+		assertThat(RuntimeHintsPredicates.resource().forResource("db/migration/nested/V2__users.sql"))
+			.accepts(runtimeHints);
 	}
 
 	@Test
@@ -1182,16 +1149,6 @@ class FlywayAutoConfigurationTests {
 		@Order(0)
 		FlywayConfigurationCustomizer customizerTwo() {
 			return (configuration) -> configuration.connectRetries(10).baselineDescription("<< Custom baseline >>");
-		}
-
-	}
-
-	@Configuration(proxyBeanMethods = false)
-	static class JooqConfiguration {
-
-		@Bean
-		DSLContext dslContext() {
-			return new DefaultDSLContext(SQLDialect.H2);
 		}
 
 	}

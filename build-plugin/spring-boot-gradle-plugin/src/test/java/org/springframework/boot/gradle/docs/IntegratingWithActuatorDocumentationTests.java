@@ -38,12 +38,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(GradleMultiDslExtension.class)
 class IntegratingWithActuatorDocumentationTests {
 
+	@SuppressWarnings("NullAway.Init")
 	GradleBuild gradleBuild;
 
 	@TestTemplate
 	void basicBuildInfo() {
 		this.gradleBuild.script(Examples.DIR + "integrating-with-actuator/build-info-basic").build("bootBuildInfo");
-		assertThat(new File(this.gradleBuild.getProjectDir(), "build/resources/main/META-INF/build-info.properties"))
+		assertThat(new File(this.gradleBuild.getProjectDir(), "build/bootBuildInfo/META-INF/build-info.properties"))
 			.isFile();
 	}
 
@@ -51,7 +52,7 @@ class IntegratingWithActuatorDocumentationTests {
 	void buildInfoCustomValues() {
 		this.gradleBuild.script(Examples.DIR + "integrating-with-actuator/build-info-custom-values")
 			.build("bootBuildInfo");
-		File file = new File(this.gradleBuild.getProjectDir(), "build/resources/main/META-INF/build-info.properties");
+		File file = new File(this.gradleBuild.getProjectDir(), "build/bootBuildInfo/META-INF/build-info.properties");
 		assertThat(file).isFile();
 		Properties properties = buildInfoProperties(file);
 		assertThat(properties).containsEntry("build.artifact", "example-app");
@@ -65,7 +66,7 @@ class IntegratingWithActuatorDocumentationTests {
 	void buildInfoAdditional() {
 		this.gradleBuild.script(Examples.DIR + "integrating-with-actuator/build-info-additional")
 			.build("bootBuildInfo");
-		File file = new File(this.gradleBuild.getProjectDir(), "build/resources/main/META-INF/build-info.properties");
+		File file = new File(this.gradleBuild.getProjectDir(), "build/bootBuildInfo/META-INF/build-info.properties");
 		assertThat(file).isFile();
 		Properties properties = buildInfoProperties(file);
 		assertThat(properties).containsEntry("build.a", "alpha");
@@ -76,7 +77,7 @@ class IntegratingWithActuatorDocumentationTests {
 	void buildInfoExcludeTime() {
 		this.gradleBuild.script(Examples.DIR + "integrating-with-actuator/build-info-exclude-time")
 			.build("bootBuildInfo");
-		File file = new File(this.gradleBuild.getProjectDir(), "build/resources/main/META-INF/build-info.properties");
+		File file = new File(this.gradleBuild.getProjectDir(), "build/bootBuildInfo/META-INF/build-info.properties");
 		assertThat(file).isFile();
 		Properties properties = buildInfoProperties(file);
 		assertThat(properties).doesNotContainKey("build.time");

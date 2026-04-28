@@ -32,6 +32,8 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.function.Resolver;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
@@ -243,17 +245,17 @@ class ElasticsearchRestClientAutoConfigurationTests {
 		Rest5Client client = Rest5Client.builder(new HttpHost("http", "localhost", 9201)).build();
 		assertThat(client.getHttpClient()).extracting("ioReactor.workers")
 			.asInstanceOf(InstanceOfAssertFactories.ARRAY)
-			.satisfies((workers) -> assertThat(workers[0]).extracting("reactorConfig.soKeepAlive").isEqualTo(false));
+			.satisfies((workers) -> assertThat(workers[0]).extracting("reactorConfig.soKeepAlive").isEqualTo(true));
 	}
 
 	@Test
 	void configureWithCustomSocketKeepAlive() {
-		this.contextRunner.withPropertyValues("spring.elasticsearch.socket-keep-alive=true")
+		this.contextRunner.withPropertyValues("spring.elasticsearch.socket-keep-alive=false")
 			.run((context) -> assertThat(context.getBean(Rest5Client.class).getHttpClient())
 				.extracting("ioReactor.workers")
 				.asInstanceOf(InstanceOfAssertFactories.ARRAY)
 				.satisfies(
-						(workers) -> assertThat(workers[0]).extracting("reactorConfig.soKeepAlive").isEqualTo(true)));
+						(workers) -> assertThat(workers[0]).extracting("reactorConfig.soKeepAlive").isEqualTo(false)));
 	}
 
 	@Test
@@ -355,6 +357,31 @@ class ElasticsearchRestClientAutoConfigurationTests {
 				.satisfies((tlsStrategy) -> {
 					assertThat(tlsStrategy).extracting("supportedProtocols").isEqualTo(new String[] { "TLSv1.3" });
 					assertThat(tlsStrategy).extracting("supportedCipherSuites").isEqualTo(new String[] { "DESede" });
+					assertThat(tlsStrategy).extracting("hostnameVerifier").isInstanceOf(DefaultHostnameVerifier.class);
+				});
+		});
+	}
+
+	@Test
+	@WithPackageResources("test.jks")
+	@SuppressWarnings("unchecked")
+	void configureWithSslBundleWithoutHostnameVerification() {
+		List<String> properties = new ArrayList<>();
+		properties.add("spring.elasticsearch.restclient.ssl.bundle=mybundle");
+		properties.add("spring.elasticsearch.restclient.ssl.verify-hostname=false");
+		properties.add("spring.ssl.bundle.jks.mybundle.truststore.location=classpath:test.jks");
+		properties.add("spring.ssl.bundle.jks.mybundle.options.ciphers=DESede");
+		properties.add("spring.ssl.bundle.jks.mybundle.options.enabled-protocols=TLSv1.3");
+		this.contextRunner.withPropertyValues(properties.toArray(String[]::new)).run((context) -> {
+			assertThat(context).hasSingleBean(Rest5Client.class);
+			Rest5Client restClient = context.getBean(Rest5Client.class);
+			assertThat(restClient).extracting("client.manager.connectionOperator.tlsStrategyLookup")
+				.asInstanceOf(InstanceOfAssertFactories.type(Registry.class))
+				.extracting((registry) -> registry.lookup("https"))
+				.satisfies((tlsStrategy) -> {
+					assertThat(tlsStrategy).extracting("supportedProtocols").isEqualTo(new String[] { "TLSv1.3" });
+					assertThat(tlsStrategy).extracting("supportedCipherSuites").isEqualTo(new String[] { "DESede" });
+					assertThat(tlsStrategy).extracting("hostnameVerifier").isSameAs(NoopHostnameVerifier.INSTANCE);
 				});
 		});
 	}

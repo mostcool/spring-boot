@@ -108,6 +108,30 @@ spring:
 
 
 
+[[data.nosql.redis.receiving]]
+=== Receiving a Message
+
+When the Redis infrastructure is present, any bean can be annotated with javadoc:org.springframework.data.redis.annotation.RedisListener[format=annotation] to create a listener endpoint.
+If no javadoc:org.springframework.data.redis.listener.RedisMessageListenerContainer[] has been defined, a default one is configured automatically.
+
+The following component creates a listener endpoint on the `someChannel` channel:
+
+include-code::MyBean[]
+
+TIP: See the javadoc:org.springframework.data.redis.annotation.EnableRedisListeners[format=annotation] API documentation for more details.
+
+If you need to create more javadoc:org.springframework.data.redis.listener.RedisMessageListenerContainer[] instances or if you want to override the default, Spring Boot provides a javadoc:org.springframework.boot.data.redis.autoconfigure.RedisMessageListenerContainerConfigurer[] that you can use to initialize a javadoc:org.springframework.data.redis.listener.RedisMessageListenerContainer[] with the same settings as the one that is auto-configured.
+
+For instance, the following example exposes another container that uses a specific javadoc:org.springframework.data.redis.connection.RedisConnectionFactory[]:
+
+include-code::custom/MyRedisConfiguration[]
+
+Then you can use the container in any javadoc:org.springframework.data.redis.annotation.RedisListener[format=annotation]-annotated method as follows:
+
+include-code::custom/MyBean[]
+
+
+
 [[data.nosql.mongodb]]
 == MongoDB
 
@@ -736,3 +760,20 @@ If you want to load the initialization script from a different resource, you can
 By default, a standard schema is used to validate `LDIF` files.
 You can turn off validation altogether by setting the configprop:spring.ldap.embedded.validation.enabled[] property.
 If you have custom attributes, you can use configprop:spring.ldap.embedded.validation.schema[] to define your custom attribute types or object classes.
+
+
+
+[[data.nosql.ldap.embedded.ssl]]
+==== SSL
+
+The in-memory LDAP server supports SSL (LDAPS).
+To enable SSL, configure the xref:features/ssl.adoc[SSL bundle] to use by setting the configprop:spring.ldap.embedded.ssl.bundle[] property, as shown in the following example:
+
+[configprops,yaml]
+----
+spring:
+  ldap:
+    embedded:
+      ssl:
+        bundle: "example"
+----

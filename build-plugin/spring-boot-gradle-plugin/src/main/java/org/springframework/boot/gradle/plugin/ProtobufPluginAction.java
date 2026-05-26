@@ -33,7 +33,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyResolveDetails;
 import org.gradle.api.artifacts.ModuleVersionSelector;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
-import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +41,7 @@ import org.jspecify.annotations.Nullable;
  * applied.
  *
  * @author Andy Wilkinson
+ * @author Dongliang Xie
  */
 final class ProtobufPluginAction implements PluginApplicationAction {
 
@@ -50,7 +50,7 @@ final class ProtobufPluginAction implements PluginApplicationAction {
 	private static final Dependency grpcDependency = new Dependency("io.grpc", "protoc-gen-grpc-java");
 
 	private static final List<VersionAlignment> versionAlignment = List.of(
-			protocDependency.alignVersionWith("com.google.protobuf", "protobuf-java-util"),
+			protocDependency.alignVersionWith("com.google.protobuf", "protobuf-java"),
 			grpcDependency.alignVersionWith("io.grpc", "grpc-util"));
 
 	@Override
@@ -141,9 +141,8 @@ final class ProtobufPluginAction implements PluginApplicationAction {
 				.getByName("runtimeClasspath")
 				.getIncoming()
 				.getResolutionResult()
-				.getAllDependencies()
+				.getAllComponents()
 				.stream()
-				.map(DependencyResult::getFrom)
 				.map(ResolvedComponentResult::getId)
 				.filter(ModuleComponentIdentifier.class::isInstance)
 				.map(ModuleComponentIdentifier.class::cast)

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -231,6 +232,8 @@ public abstract class AbstractPackagerMojo extends AbstractDependencyFilterMojo 
 		try (InputStream in = source.getInputStream()) {
 			InputSource inputSource = new InputSource(in);
 			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+			factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+			factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			factory.setNamespaceAware(true);
 			DocumentBuilder builder = factory.newDocumentBuilder();
 			return builder.parse(inputSource);
